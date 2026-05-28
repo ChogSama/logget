@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "target": "es2023",
+    "skipLibCheck": true
+  },
+  "files": [],
+  "references": [
+    { "path": "./web/tsconfig.json" }
+  ]
+}

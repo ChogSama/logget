@@ -1,0 +1,52 @@
+{
+  "name": "logget",
+  "private": true,
+  "version": "0.0.1",
+  "description": "AI-powered Micro-Journaling for Student Well-Being",
+  "keywords": [],
+  "homepage": "https://github.com/ChogSama/vital-log#readme",
+  "bugs": {
+    "url": "https://github.com/ChogSama/vital-log/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChogSama/vital-log.git"
+  },
+  "license": "ISC",
+  "author": "ChogSama<ChogSama> and Doman<do-manh-hiep>",
+  "contributors": [],
+  "type": "module",
+  "scripts": {
+    "setup": "node setup.js",
+    "dev:web": "cd web && vite",
+    "dev:server": "node setup.js fastapi dev server/main.py",
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:server\"",
+    "build:web": "cd web && tsc -b && vite build",
+    "lint:web": "cd web && eslint .",
+    "lint:server": "node setup.js ruff check server/"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "axios": "^1.16.1",
+    "lucide-react": "^1.16.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-router-dom": "^7.15.1",
+    "tailwindcss": "^4.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.12.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.12"
+  }
+}
