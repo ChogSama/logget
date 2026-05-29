@@ -108,15 +108,18 @@ docs/update-api-reference
 chore/upgrade-vite
 ```
 
-### Commits
+### Commits & Pull Requests
 
-Theo chuẩn [Conventional Commits](https://www.conventionalcommits.org). Prefix của commit độc lập với branch — branch `feat/user-auth` có thể chứa các commit `fix:` hoặc `refactor:` trong quá trình làm:
+Theo chuẩn [Conventional Commits](https://www.conventionalcommits.org).
 
 ```
 feat: add user authentication
 fix: correct validation logic
 refactor: simplify token parsing
 ```
+
+**Quy định bổ sung đối với Pull Request:**
+* Nếu braches chưa hoàn thiện hoặc chưa sẵn sàng nhưng cần review, có thể tạo PR dưới dạng **Draft Pull Request**.
 
 ---
 
