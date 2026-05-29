@@ -10,7 +10,7 @@ _**logget**_: React (Vite) + FastAPI.
 ## Setup
 
 ```bash
-node setup.js     # create venv + pip install + npm install
+node setup.js     # install uv (if missing) + uv sync + npm install
 ```
 
 Hoặc sau khi đã có node_modules:
@@ -35,16 +35,42 @@ npm run lint:web     # lint frontend
 npm run lint:server  # lint backend
 ```
 
+## Dependencies
+
+### Frontend (npm)
+
+Luôn chạy từ **root**, không phải từ bên trong `web/`:
+
+```bash
+npm install <pkg>          # runtime dep  → "dependencies" trong package.json
+npm install -D <pkg>       # dev dep      → "devDependencies" trong package.json
+npm uninstall <pkg>
+npm update <pkg>
+```
+
+### Backend (uv)
+
+```bash
+uv add <pkg>               # thêm vào pyproject.toml + cập nhật uv.lock
+uv add --dev <pkg>         # dev dep (linting, testing, ...)
+uv remove <pkg>
+uv sync                    # đồng bộ .venv theo pyproject.toml + uv.lock
+uv lock --upgrade-package <pkg>   # upgrade 1 package
+```
+
+> Không dùng `pip install` trực tiếp — sẽ không cập nhật `pyproject.toml` và `uv.lock`.
+
 ## Project Structure
 
 ```
-├── server/          # FastAPI backend
+├── server/              # FastAPI backend
 │   └── main.py
-├── web/             # React frontend
-│   └── src/
-├── setup.js         # cross-platform setup helper
-├── requirements.txt
-└── package.json
+├── web/                 # React + Vite frontend
+│   ├── src/
+│   └── vite.config.ts
+├── package.json         # Node.js deps (npm)
+├── pyproject.toml       # Python deps (uv)
+└── setup.js             # cross-platform setup helper
 ```
 
 ## Contributing
@@ -82,12 +108,21 @@ docs/update-api-reference
 chore/upgrade-vite
 ```
 
-### Commits
+### Commits & Pull Requests
 
-Theo chuẩn [Conventional Commits](https://www.conventionalcommits.org). Prefix của commit độc lập với branch — branch `feat/user-auth` có thể chứa các commit `fix:` hoặc `refactor:` trong quá trình làm:
+Theo chuẩn [Conventional Commits](https://www.conventionalcommits.org).
 
 ```
 feat: add user authentication
 fix: correct validation logic
 refactor: simplify token parsing
 ```
+
+**Quy định bổ sung đối với Pull Request:**
+* Merge Pull Requests theo tùy chọn **Squash and Merge**.
+* Có thể viết PR tittle chi tiết hơn theo cú pháp: `<type>(<scope>): <description>`.
+* Nếu braches chưa hoàn thiện hoặc chưa sẵn sàng nhưng cần review, có thể tạo PR dưới dạng **Draft Pull Request**.
+
+---
+
+Xem thêm: [NOTES.md](./NOTES.md)

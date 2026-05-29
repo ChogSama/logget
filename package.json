@@ -19,15 +19,16 @@
   "scripts": {
     "setup": "node setup.js",
     "dev:web": "cd web && vite",
-    "dev:server": "node setup.js fastapi dev server/main.py",
+    "dev:server": "cross-env PYTHONPATH=. uv run fastapi dev server/main.py",
     "dev": "concurrently \"npm run dev:web\" \"npm run dev:server\"",
     "build:web": "cd web && tsc -b && vite build",
     "lint:web": "cd web && eslint .",
-    "lint:server": "node setup.js ruff check server/"
+    "lint:server": "cross-env PYTHONPATH=. uv run ruff check server/"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
     "axios": "^1.16.1",
+    "cross-env": "^10.1.0",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
