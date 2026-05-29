@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { existsSync, copyFileSync } from 'node:fs'
+import { existsSync, copyFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import os from 'node:os'
 
@@ -26,5 +26,13 @@ if (existsSync('.env.example') && !existsSync('.env')) {
 if (existsSync('pyproject.toml')) run(`"${uv}" sync`)
 
 if (existsSync('package.json')) {
-  try { run('npm ci') } catch { run('npm install') }
+  try {
+    run('npm ci')
+  } catch {
+    try {
+      if (existsSync('node_modules'))
+        rmSync('node_modules', { recursive: true, force: true })
+    } catch { /* ignore locked files */ }
+    run('npm install')
+  }
 }
