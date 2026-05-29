@@ -120,6 +120,7 @@ refactor: simplify token parsing
 
 **Quy định bổ sung đối với Pull Request:**
 * Merge Pull Requests theo tùy chọn **Squash and Merge**.
+* Có thể viết PR tittle chi tiết hơn theo cú pháp: `<type>(<scope>): <description>`.
 * Nếu braches chưa hoàn thiện hoặc chưa sẵn sàng nhưng cần review, có thể tạo PR dưới dạng **Draft Pull Request**.
 
 ---
