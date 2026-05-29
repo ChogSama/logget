@@ -19,11 +19,11 @@
   "scripts": {
     "setup": "node setup.js",
     "dev:web": "cd web && vite",
-    "dev:server": "node setup.js fastapi dev server/main.py",
+    "dev:server": "uv run fastapi dev server/main.py",
     "dev": "concurrently \"npm run dev:web\" \"npm run dev:server\"",
     "build:web": "cd web && tsc -b && vite build",
     "lint:web": "cd web && eslint .",
-    "lint:server": "node setup.js ruff check server/"
+    "lint:server": "uv run ruff check server/"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
