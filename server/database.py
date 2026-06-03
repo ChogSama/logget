@@ -1,14 +1,12 @@
-# Async SQLAlchemy engine + session factory.
-# Session dependency: `async with get_db() as db`
-
+"""
+Async SQLAlchemy engine + session factory.
+"""
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
-from dotenv import load_dotenv
-import os
 
-load_dotenv()
+from server.config import settings
 
-engine = create_async_engine(os.getenv("DATABASE_URL"), echo=False)
+engine = create_async_engine(settings.DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
