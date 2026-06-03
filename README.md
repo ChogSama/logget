@@ -86,7 +86,7 @@ npx cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini revision --autog
 npx cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini history            # xem lịch sử migration
 ```
 
-> Việc có tiền tố `cross-env PYTHONPATH=.`, đặc biệt thêm cả `npx`, được giải thích ở [NOTES.md (Mục Tiền tố cross-env PYTHONPATH=.)](./NOTES.md#tiền-tố-cross-env-pythonpath).
+> Việc có tiền tố `cross-env PYTHONPATH=.`, đặc biệt thêm cả `npx`, được giải thích ở [NOTES.md](./NOTES.md#tiền-tố-cross-env-pythonpath).
 
 ## Project Structure
 
