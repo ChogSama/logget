@@ -20,7 +20,7 @@
     "setup": "node setup.js",
 
     "dev:web": "cd web && vite",
-    "dev:server": "cross-env PYTHONPATH=. uv run fastapi dev server/main.py",
+    "dev:server": "cross-env PYTHONPATH=. PYTHONIOENCODING=utf-8 uv run fastapi dev server/main.py",
     "dev": "concurrently \"npm run dev:web\" \"npm run dev:server\"",
 
     "build:web": "cd web && tsc -b && vite build",

@@ -32,6 +32,7 @@ Dự án dùng **single root `package.json**` thay vì tách riêng cấu hình 
 ### Tiền tố `cross-env PYTHONPATH=.`
 
 * **Bắt buộc:** Thêm vào trước tất cả các lệnh thực thi runtime, kiểm thử hoặc di cư dữ liệu (`uv run fastapi dev`, `uv run python check_core.py`, `uv run alembic...`) từ root. Tiền tố này đưa root vào `sys.path` để Python nhận diện gói `server.*`, công cụ `cross-env` giúp đồng nhất cú pháp trên Windows/macOS/Linux.
+* **Môi trường Windows:** Nếu hệ thống báo lỗi không nhận diện lệnh `cross-env`, thay thế bằng tiền tố `npx cross-env PYTHONPATH=.` để sử dụng trực tiếp công cụ có sẵn trong `node_modules` ở root.
 * **Ngoại lệ:** Các lệnh quản lý package của uv (`uv add`, `uv remove`, `uv sync`) không cần thêm tiền tố này.
 
 ### Quy chuẩn Import tuyệt đối

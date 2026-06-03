@@ -77,14 +77,16 @@ npm run db:revision "tên_migration"       # tạo file migration mới từ tha
 
 > Tên migration dùng **snake_case**, ví dụ: `add_user_table`, `add_lbs_score_to_daily_summary`.
 
-Lệnh gốc (nếu cần chạy trực tiếp qua `uv`):
+Lệnh dùng trực tiếp (nếu cần chạy trực tiếp qua `uv`):
 
 ```bash
-uv run alembic -c server/alembic.ini upgrade head       # migrate lên mới nhất
-uv run alembic -c server/alembic.ini downgrade -1       # rollback 1 bước
-uv run alembic -c server/alembic.ini revision --autogenerate -m "tên_migration" # Tạo file migration mới
-uv run alembic -c server/alembic.ini history            # xem lịch sử migration
+npx cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini upgrade head       # migrate lên mới nhất
+npx cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini downgrade -1       # rollback 1 bước
+npx cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini revision --autogenerate -m "tên_migration" # Tạo file migration mới
+npx cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini history            # xem lịch sử migration
 ```
+
+> Việc có tiền tố `cross-env PYTHONPATH=.`, đặc biệt thêm cả `npx`, được giải thích ở [NOTES.md (Mục Tiền tố cross-env PYTHONPATH=.)](./NOTES.md#tiền-tố-cross-env-pythonpath).
 
 ## Project Structure
 
