@@ -11,10 +11,9 @@ _**logget**_: React (Vite) + FastAPI.
 
 ```bash
 node setup.js     # install uv (if missing) + uv sync + npm install
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Hoặc sau khi đã có node_modules:
+Hoặc sau khi đã có **node_modules**:
 
 ```bash
 npm run setup
@@ -40,8 +39,6 @@ npm run lint:server  # lint backend
 
 ### Frontend (npm)
 
-Luôn chạy từ **root**, không phải từ bên trong `web/`:
-
 ```bash
 npm install <pkg>          # runtime dep  → "dependencies" trong package.json
 npm install -D <pkg>       # dev dep      → "devDependencies" trong package.json
@@ -50,6 +47,14 @@ npm update <pkg>
 ```
 
 ### Backend (uv)
+
+Cài đặt **uv** (nếu chưa có):
+
+```bash
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Các lệnh quản lý gói **uv** - tương tự như npm nhưng dành cho python.
 
 ```bash
 uv add <pkg>               # thêm vào pyproject.toml + cập nhật uv.lock
@@ -60,6 +65,26 @@ uv lock --upgrade-package <pkg>   # upgrade 1 package
 ```
 
 > Không dùng `pip install` trực tiếp — sẽ không cập nhật `pyproject.toml` và `uv.lock`.
+
+## Database (alembic)
+
+Alembic quản lý lịch sử thay đổi schema DB — tương tự git nhưng cho bảng/cột.
+
+```bash
+npm run db:migrate                        # áp dụng tất cả migration chưa chạy
+npm run db:revision "tên_migration"       # tạo file migration mới từ thay đổi models
+```
+
+> Tên migration dùng **snake_case**, ví dụ: `add_user_table`, `add_lbs_score_to_daily_summary`.
+
+Lệnh gốc (nếu cần chạy trực tiếp qua `uv`):
+
+```bash
+uv run alembic -c server/alembic.ini upgrade head       # migrate lên mới nhất
+uv run alembic -c server/alembic.ini downgrade -1       # rollback 1 bước
+uv run alembic -c server/alembic.ini revision --autogenerate -m "tên_migration" # Tạo file migration mới
+uv run alembic -c server/alembic.ini history            # xem lịch sử migration
+```
 
 ## Project Structure
 
@@ -109,21 +134,23 @@ docs/update-api-reference
 chore/upgrade-vite
 ```
 
-### Commits
+### Commits & Pull Requests
 
-Theo chuẩn [Conventional Commits](https://www.conventionalcommits.org): `<type>: <description>`
+Theo chuẩn [Conventional Commits](https://www.conventionalcommits.org): `<type>[optional scope]: <description>`.
 
 ```
 feat: add user authentication
 fix: correct validation logic
-refactor: simplify token parsing
+feat(lang): add Polish language
 ```
 
-### Pull Requests
+> Các quy tắc chuẩn dành cho bot, tools. Devs cũng áp dụng theo nhưng có thể chấp nhận sai sót nhỏ lẻ.
+
+**Ghi chú bổ sung cho Pull Requests:**
 
 * PR phải được merge theo tùy chọn **Squash and Merge**.
 
-* PR tittle & Merge message theo cú pháp: `<type>(<scope>): <description> (#id)`. <br/>
+* PR title & Merge message theo cú pháp: `<type>[scope]: <description> (#id)`. <br/>
   * *Trong đó, `#id` là số định danh duy nhất của Issue/PR trên GitHub (hoặc mã Ticket).*
   * *Ví dụ:* `feat(auth): add user authentication (#42)`
 
