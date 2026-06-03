@@ -11,6 +11,7 @@ _**logget**_: React (Vite) + FastAPI.
 
 ```bash
 node setup.js     # install uv (if missing) + uv sync + npm install
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 Hoặc sau khi đã có node_modules:
@@ -108,9 +109,9 @@ docs/update-api-reference
 chore/upgrade-vite
 ```
 
-### Commits & Pull Requests
+### Commits
 
-Theo chuẩn [Conventional Commits](https://www.conventionalcommits.org).
+Theo chuẩn [Conventional Commits](https://www.conventionalcommits.org): `<type>: <description>`
 
 ```
 feat: add user authentication
@@ -118,10 +119,15 @@ fix: correct validation logic
 refactor: simplify token parsing
 ```
 
-**Quy định bổ sung đối với Pull Request:**
-* Merge Pull Requests theo tùy chọn **Squash and Merge**.
-* Có thể viết PR tittle chi tiết hơn theo cú pháp: `<type>(<scope>): <description>`.
-* Nếu braches chưa hoàn thiện hoặc chưa sẵn sàng nhưng cần review, có thể tạo PR dưới dạng **Draft Pull Request**.
+### Pull Requests
+
+* PR phải được merge theo tùy chọn **Squash and Merge**.
+
+* PR tittle & Merge message theo cú pháp: `<type>(<scope>): <description> (#id)`. <br/>
+  * *Trong đó, `#id` là số định danh duy nhất của Issue/PR trên GitHub (hoặc mã Ticket).*
+  * *Ví dụ:* `feat(auth): add user authentication (#42)`
+
+* Nếu branches chưa hoàn thiện hoặc chưa sẵn sàng nhưng cần review, có thể tạo PR dưới dạng **Draft Pull Request**.
 
 ---
 

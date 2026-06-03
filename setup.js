@@ -12,11 +12,15 @@ const uv = join(uvDir, isWin ? 'uv.exe' : 'uv')
 
 if (!existsSync(uv)) {
   if (isWin) {
-    run(
-      'powershell -NoP -C "irm https://astral.sh/uv/install.ps1 | iex"',
-      { ...process.env, UV_INSTALL_DIR: uvDir, UV_NO_MODIFY_PATH: '1' }
-    )
+    run('powershell -NoP -ExecutionPolicy Bypass -C "irm https://astral.sh/uv/install.ps1 | iex"')
+  } else {
+    run('curl -LsSf https://astral.sh/uv/install.sh | sh')
   }
+}
+
+if (existsSync(uvDir)) {
+  const separator = isWin ? ';' : ':'
+  process.env.PATH = `${uvDir}${separator}${process.env.PATH}`
 }
 
 if (existsSync('.env.example') && !existsSync('.env')) {
@@ -36,3 +40,6 @@ if (existsSync('package.json')) {
     run('npm install')
   }
 }
+
+const shell = isWin ? 'powershell' : (process.env.SHELL || 'bash')
+run(shell, process.env)
