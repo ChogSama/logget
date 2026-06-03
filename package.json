@@ -27,8 +27,8 @@
     "lint:web": "cd web && eslint .",
     "lint:server": "cross-env PYTHONPATH=. uv run ruff check server/",
     
-    "db:migrate":   "uv run alembic -c server/alembic.ini upgrade head",
-    "db:revision": "uv run alembic -c server/alembic.ini revision --autogenerate -m"
+    "db:migrate": "cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini upgrade head",
+    "db:revision": "cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini revision --autogenerate -m"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
