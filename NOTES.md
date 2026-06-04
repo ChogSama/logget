@@ -71,6 +71,56 @@ router = APIRouter()
 2. Không phân tách hoặc đặt tệp cấu hình `.env` cục bộ bên trong thư mục `web/`.
 3. Không viết bình luận (comments) nội tuyến rải rác trong các khối lệnh backend; toàn bộ bình luận giải thích giải pháp hoặc tổng quan kiến trúc phải được đưa lên đầu tệp tin.
 
+
+## Google OAuth — Code Exchange Flow
+
+Thay vì trả token trực tiếp từ callback (không an toàn khi token lộ trên URL), BE dùng luồng 3 bước:
+
+```
+React                     FastAPI                    Google
+  │                          │                           │
+  ├─ GET /auth/google ──────►│                           │
+  │                          ├─ redirect ───────────────►│
+  │                          │                           │ (user đăng nhập)
+  │                          │◄─── redirect + code ──────┤
+  │                          │                           │
+  │                          │ exchange_google_code(code)│
+  │                          │ → upsert User vào DB      │
+  │                          │ → create_oauth_code()     │
+  │◄─── redirect /auth/callback?code=<oauth_code> ───────┤
+  │                          │                           │
+  ├── POST /auth/google/token {code} ──────────────────► │
+  │◄─── {access_token, refresh_token} ───────────────────┤
+```
+
+**oauth_code**: JWT loại `type="oauth_code"`, TTL 5 phút, ký bằng `SECRET_KEY`. Không có cơ chế invalidate sau dùng ở MVP (acceptable vì TTL ngắn). Nếu cần strict one-time: lưu code đã dùng vào Redis/DB.
+
+**Frontend cần làm**: Khi React nhận được redirect tới `/auth/callback?code=...`, parse query param `code` rồi gọi `POST /auth/google/token` để lấy JWT.
+
+## JWT — Phân biệt `type`
+
+| `type`       | TTL   | Dùng ở đâu                              |
+|---|---|---|
+| `access`     | 30min | Bearer token mọi endpoint               |
+| `refresh`    | 7d    | POST /auth/refresh                      |
+| `oauth_code` | 5min  | POST /auth/google/token (Google flow)   |
+
+`decode_token(token, expected_type)` — kiểm tra `type` trước khi trả `sub`. `dependencies.py` gọi mặc định `expected_type="access"`.
+
+
+## Google OAuth với React PWA & Capacitor (Android App)
+
+### Vấn đề (The Issue)
+- Luồng Google OAuth hiện tại sử dụng Web Client ID (`server.config`).
+- Khi đóng gói bằng Capacitor lên Android, ứng dụng chạy dưới scheme `capacitor://localhost` hoặc `http://localhost`. 
+- Google Cloud Console **chặn** không cho phép cấu hình `Redirect URI` với các scheme của ứng dụng hybrid này, dẫn đến lỗi đá hướng (Redirect) trên thiết bị di động.
+
+### Hướng giải quyết (Resolution)
+- **Kiến trúc:** Tách biệt luồng đăng nhập giữa Web (PWA) và Native App (Capacitor).
+- **Google Cloud Console:** Tạo thêm một **OAuth Client ID** với Application type là **Android** (cần SHA-1 fingerprint từ keystore).
+- **Frontend (Capacitor):** Sử dụng plugin native `@codetrix-studio/capacitor-google-auth` để gọi gọi hộp thoại đăng nhập của hệ thống Android.
+- **Backend (FastAPI):** Bổ sung logic hoặc endpoint chấp nhận verify `id_token` trực tiếp từ Android Client gửi lên, thay vì chỉ nhận `code` từ luồng Web.
+
 ---
 
 ## Kế hoạch tách Repositories (Tương lai)
