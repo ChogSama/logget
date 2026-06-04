@@ -9,32 +9,31 @@ JWT — payload keys: sub (user_id str), type, exp. Algorithm: HS256.
 Google OAuth Code Exchange Flow:
     1. GET  /auth/google            → redirect tới Google
     2. GET  /auth/google/callback   → BE exchange code với Google → tạo oauth_code JWT
-                                    → redirect React: FRONTEND_URL/auth/callback?code=<oauth_code>
+                                      → redirect React: FRONTEND_URL/auth/callback?code=<oauth_code>
     3. POST /auth/google/token      → React gửi oauth_code → BE trả access + refresh token
     Hàm liên quan: get_google_auth_url(), exchange_google_code(), create_oauth_code(), decode_oauth_code()
 
-    OAUTHLIB_INSECURE_TRANSPORT=1: bypass HTTPS check trên redirect URI. An toàn vì
-    bảo mật thực nằm ở server-side code exchange, không phải redirect URI scheme.
+    exchange_google_code() dùng requests trực tiếp (không dùng google-auth-oauthlib Flow để
+    tránh state mismatch trong stateless FastAPI — mỗi request tạo Flow mới, state khác nhau).
+    google-auth-oauthlib vẫn có trong deps nhưng chỉ dùng google.oauth2.id_token để verify.
 
 Password: pwdlib[bcrypt]
 CRUD: get_user_by_email, get_user_by_id, get_user_by_google_id, create_user
 """
-import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 import jwt
+import requests as http_requests
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2 import id_token as google_id_token
-from google_auth_oauthlib.flow import Flow
 from pwdlib import PasswordHash
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.config import settings
 from server.models.user import User
-
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 _ALGORITHM = "HS256"
 _ACCESS_EXPIRE = timedelta(minutes=30)
@@ -98,30 +97,39 @@ def decode_oauth_code(code: str) -> str | None:
 
 # --- Google OAuth ---
 
-def _make_google_flow() -> Flow:
-    config = {
-        "web": {
-            "client_id": settings.GOOGLE_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CLIENT_SECRET,
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [settings.GOOGLE_REDIRECT_URI],
-        }
-    }
-    return Flow.from_client_config(config, scopes=_GOOGLE_SCOPES, redirect_uri=settings.GOOGLE_REDIRECT_URI)
-
-
 def get_google_auth_url() -> str:
-    url, _ = _make_google_flow().authorization_url(prompt="consent")
-    return url
+    params = {
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": " ".join(_GOOGLE_SCOPES),
+        "prompt": "consent",
+        "access_type": "offline",
+    }
+    return "https://accounts.google.com/o/oauth2/auth?" + urlencode(params)
 
 
 def exchange_google_code(code: str) -> dict:
-    """Return {google_id, email, name, avatar_url}. Blocking — acceptable cho OAuth flow."""
-    flow = _make_google_flow()
-    flow.fetch_token(code=code)
+    """
+    Exchange authorization code lấy id_token từ Google.
+    Dùng requests trực tiếp — tránh state mismatch của google-auth-oauthlib Flow.
+    Blocking — acceptable cho OAuth flow (tần suất thấp).
+    """
+    resp = http_requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code": code,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
+            "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+            "grant_type": "authorization_code",
+        },
+    )
+    resp.raise_for_status()
+    id_token_str = resp.json()["id_token"]
+
     info = google_id_token.verify_oauth2_token(
-        flow.credentials.id_token,
+        id_token_str,
         GoogleRequest(),
         settings.GOOGLE_CLIENT_ID,
     )

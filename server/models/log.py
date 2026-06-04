@@ -5,7 +5,7 @@ UniqueConstraint: daily_summaries(user_id, date)
 """
 import enum
 import uuid
-from datetime import PyDate, datetime
+from datetime import date as PyDate, datetime
 
 from sqlalchemy import (
     Boolean, Date, DateTime, Enum, Float, ForeignKey,

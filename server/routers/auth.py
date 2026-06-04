@@ -76,6 +76,8 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
     try:
         info = auth_service.exchange_google_code(code)
     except Exception:
+        import traceback
+        traceback.print_exc()  # In chi tiết log lỗi ra terminal
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Google OAuth failed")
 
     user = await auth_service.get_user_by_google_id(db, info["google_id"])
