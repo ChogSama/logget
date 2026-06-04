@@ -107,6 +107,20 @@ React                     FastAPI                    Google
 
 `decode_token(token, expected_type)` — kiểm tra `type` trước khi trả `sub`. `dependencies.py` gọi mặc định `expected_type="access"`.
 
+
+## Google OAuth với React PWA & Capacitor (Android App)
+
+### Vấn đề (The Issue)
+- Luồng Google OAuth hiện tại sử dụng Web Client ID (`server.config`).
+- Khi đóng gói bằng Capacitor lên Android, ứng dụng chạy dưới scheme `capacitor://localhost` hoặc `http://localhost`. 
+- Google Cloud Console **chặn** không cho phép cấu hình `Redirect URI` với các scheme của ứng dụng hybrid này, dẫn đến lỗi đá hướng (Redirect) trên thiết bị di động.
+
+### Hướng giải quyết (Resolution)
+- **Kiến trúc:** Tách biệt luồng đăng nhập giữa Web (PWA) và Native App (Capacitor).
+- **Google Cloud Console:** Tạo thêm một **OAuth Client ID** với Application type là **Android** (cần SHA-1 fingerprint từ keystore).
+- **Frontend (Capacitor):** Sử dụng plugin native `@codetrix-studio/capacitor-google-auth` để gọi gọi hộp thoại đăng nhập của hệ thống Android.
+- **Backend (FastAPI):** Bổ sung logic hoặc endpoint chấp nhận verify `id_token` trực tiếp từ Android Client gửi lên, thay vì chỉ nhận `code` từ luồng Web.
+
 ---
 
 ## Kế hoạch tách Repositories (Tương lai)
