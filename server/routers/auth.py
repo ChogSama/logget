@@ -31,7 +31,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: UserCreate, db: AsyncSession = Depends(get_db)):
     if await auth_service.get_user_by_email(db, body.email):
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Email already registered")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, 
+            detail="Email already registered. Try login or Sign in with Google."
+        )
     user = await auth_service.create_user(
         db,
         email=body.email,
