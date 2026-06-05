@@ -16,13 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from server.database import Base
 
-
-class ActivityType(str, enum.Enum):
-    work = "work"
-    sleep = "sleep"
-    exercise = "exercise"
-    social = "social"
-    recovery = "recovery"
+from server.schemas.log import ActivityType
 
 
 class InsightType(str, enum.Enum):

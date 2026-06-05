@@ -34,7 +34,7 @@ class LogCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_time_range(self) -> Self:
-        if self.end_time <= self.start_time:
+        if self.end_time < self.start_time:
             raise ValueError("end_time must be after start_time")
         return self
 

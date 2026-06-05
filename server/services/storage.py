@@ -25,9 +25,9 @@ _UPLOAD_FOLDER = "logget/logs"
 
 def _configure() -> None:
     cloudinary.config(
-        cloud_name=settings.cloudinary_cloud_name,
-        api_key=settings.cloudinary_api_key,
-        api_secret=settings.cloudinary_api_secret,
+        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+        api_key=settings.CLOUDINARY_API_KEY,
+        api_secret=settings.CLOUDINARY_API_SECRET,
         secure=True,
     )
 
@@ -36,10 +36,10 @@ def generate_signed_params() -> dict:
     _configure()
     timestamp = int(time.time())
     params = {"folder": _UPLOAD_FOLDER, "timestamp": timestamp}
-    signature = cloudinary.utils.api_sign_request(params, settings.cloudinary_api_secret)
+    signature = cloudinary.utils.api_sign_request(params, settings.CLOUDINARY_API_SECRET)
     return {
-        "cloud_name": settings.cloudinary_cloud_name,
-        "api_key": settings.cloudinary_api_key,
+        "cloud_name": settings.CLOUDINARY_CLOUD_NAME,
+        "api_key": settings.CLOUDINARY_API_KEY,
         "timestamp": timestamp,
         "signature": signature,
         "folder": _UPLOAD_FOLDER,

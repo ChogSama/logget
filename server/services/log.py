@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from server.models.log import ActivityLog
 from server.schemas.log import LogCreate, LogUpdate
@@ -37,7 +38,8 @@ def _to_utc(dt: datetime, tz: ZoneInfo) -> datetime:
     """Gắn timezone vào naive datetime rồi convert sang UTC."""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=tz)
-    return dt.astimezone(_UTC)
+    utc_dt = dt.astimezone(_UTC)
+    return utc_dt.replace(tzinfo=None)
 
 
 def _day_utc_range(d: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
@@ -85,8 +87,10 @@ async def create_log(
     logged_at = _to_utc(data.start_time, tz)
     duration_hours = (data.end_time - data.start_time).total_seconds() / 3600
 
+    ensure_uuid = user_id if isinstance(user_id, UUID) else UUID(str(user_id))
+
     log = ActivityLog(
-        user_id=user_id,
+        user_id=ensure_uuid,
         activity_type=data.activity_type,
         duration_hours=round(duration_hours, 4),
         note=data.note,
