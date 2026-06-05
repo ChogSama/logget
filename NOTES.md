@@ -121,6 +121,26 @@ React                     FastAPI                    Google
 - **Frontend (Capacitor):** Sử dụng plugin native `@codetrix-studio/capacitor-google-auth` để gọi gọi hộp thoại đăng nhập của hệ thống Android.
 - **Backend (FastAPI):** Bổ sung logic hoặc endpoint chấp nhận verify `id_token` trực tiếp từ Android Client gửi lên, thay vì chỉ nhận `code` từ luồng Web.
 
+## Server Log & Cloudinary Storage
+
+### Quy tắc xử lý thời gian & Múi giờ
+
+* **Lưu trữ:** Mọi timestamp trong DB (`logged_at`) bắt buộc là timezone-naive UTC (loại bỏ `tzinfo` sau khi convert qua `_to_utc()`).
+* **Truy vấn:** Khi lọc nhật ký theo ngày (`GET /logs?date=...`), bắt buộc quy đổi khoảng thời gian UTC tương ứng với ngày đó theo múi giờ cục bộ của client (`_day_utc_range()`).
+
+### Ràng buộc đồng thời của trường thời gian (Atomic Updates)
+
+* Trong `LogUpdate`, bộ 3 trường `start_time`, `end_time`, `timezone` phải được gửi đầy đủ cùng nhau hoặc không gửi trường nào nhằm bảo toàn logic tính toán thời lượng (`duration_hours`).
+
+### Đồng nhất kiểu dữ liệu & Dependency
+
+* **Enum:** Định nghĩa duy nhất `ActivityType` tại schema; model bắt buộc import lại để tránh lỗi xung đột thực thể của SQLAlchemy.
+* **User ID:** Hàm phụ thuộc `get_current_user` trả về chuỗi/ID thô từ token. Tầng router phải ép kiểu tường minh sang `UUID` thông qua hàm bổ trợ `_ensure_uuid()` trước khi truyền xuống tầng service.
+
+### Dọn dẹp tài nguyên Cloudinary
+
+* Bất kỳ thao tác nào làm thay đổi hoặc xóa bỏ giá trị cũ của `media_url` (tại `PATCH` và `DELETE`) bắt buộc phải gọi hàm `delete_media` qua tác vụ chạy ngầm `BackgroundTasks` để giải phóng tài nguyên bất đồng bộ, tránh gây nghẽn luồng phản hồi API.
+
 ---
 
 ## Kế hoạch tách Repositories (Tương lai)
