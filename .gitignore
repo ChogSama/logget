@@ -28,3 +28,12 @@ venv/
 __pycache__/
 *.py[cod]
 .env
+
+# Vite / frontend build output
+web/dist/
+web/dev-dist/
+
+# PWA / Workbox generated files
+web/sw.js
+web/registerSW.js
+web/workbox-*.js
