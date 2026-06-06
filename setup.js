@@ -1,26 +1,45 @@
-/**
- * Cross-platform helper (Windows / macOS / Linux).
- *
- * Usage:
- * node setup.js               → create .env + venv + pip install + npm install
- * node setup.js <bin> [args]  → run a binary inside venv, e.g. node setup.js fastapi dev server/main.py
- */
+import { execSync } from 'node:child_process'
+import { existsSync, copyFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import os from 'node:os'
 
-import { execSync } from 'child_process'
-import { existsSync, copyFileSync } from 'fs'
-import { join } from 'path'
+const run = (cmd, env = process.env) =>
+  execSync(cmd, { stdio: 'inherit', env })
 
-const binDir = process.platform === 'win32' ? 'Scripts' : 'bin'
-const venvBin = (name) => join('venv', binDir, name)
-const [,, cmd, ...args] = process.argv
+const isWin = process.platform === 'win32'
+const uvDir = join(os.homedir(), '.local', 'bin')
+const uv = join(uvDir, isWin ? 'uv.exe' : 'uv')
 
-if (!cmd) {
-  if (!existsSync('.env') && existsSync('.env.example')) {
-    copyFileSync('.env.example', '.env')
+if (!existsSync(uv)) {
+  if (isWin) {
+    run('powershell -NoP -ExecutionPolicy Bypass -C "irm https://astral.sh/uv/install.ps1 | iex"')
+  } else {
+    run('curl -LsSf https://astral.sh/uv/install.sh | sh')
   }
-  if (!existsSync('venv')) execSync('python -m venv venv', { stdio: 'inherit' })
-  execSync(`${venvBin('pip')} install -r requirements.txt`, { stdio: 'inherit' })
-  execSync('npm install', { stdio: 'inherit' })
-} else {
-  execSync(`${venvBin(cmd)} ${args.join(' ')}`, { stdio: 'inherit' })
 }
+
+if (existsSync(uvDir)) {
+  const separator = isWin ? ';' : ':'
+  process.env.PATH = `${uvDir}${separator}${process.env.PATH}`
+}
+
+if (existsSync('.env.example') && !existsSync('.env')) {
+  copyFileSync('.env.example', '.env')
+}
+
+if (existsSync('pyproject.toml')) run(`"${uv}" sync`)
+
+if (existsSync('package.json')) {
+  try {
+    run('npm ci')
+  } catch {
+    try {
+      if (existsSync('node_modules'))
+        rmSync('node_modules', { recursive: true, force: true })
+    } catch { /* ignore locked files */ }
+    run('npm install')
+  }
+}
+
+const shell = isWin ? 'powershell' : (process.env.SHELL || 'bash')
+run(shell, process.env)

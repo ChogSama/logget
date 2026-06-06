@@ -18,16 +18,22 @@
   "type": "module",
   "scripts": {
     "setup": "node setup.js",
-    "dev:web": "cd web && vite --host",
-    "dev:server": "node setup.js fastapi dev server/main.py",
-    "dev": "concurrently \"npm run dev:web\" \"npm run dev:server\"",
+
+    "dev:web": "cd web && vite",
+    "dev:server": "cross-env PYTHONPATH=. PYTHONIOENCODING=utf-8 uv run fastapi dev server/main.py",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+
     "build:web": "cd web && tsc -b && vite build",
     "lint:web": "cd web && eslint .",
-    "lint:server": "node setup.js ruff check server/"
+    "lint:server": "cross-env PYTHONPATH=. uv run ruff check server/",
+    
+    "db:migrate": "cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini upgrade head",
+    "db:revision": "cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini revision --autogenerate -m"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
     "axios": "^1.16.1",
+    "cross-env": "^10.1.0",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
@@ -47,7 +53,6 @@
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite": "^8.0.12"
   }
 }
