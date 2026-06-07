@@ -1,5 +1,43 @@
 @import "tailwindcss";
 
-@theme {
-  /* Khai báo biến CSS để tùy chỉnh cấu hình */
+/* ===== Design Tokens (CSS variables) ===== */
+:root {
+  --bg: #ffffff;
+  --text: #0f0f0f;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --primary: #aa3bff;
+}
+
+/* Dark mode */
+.dark {
+  --bg: #16171d;
+  --text: #f3f4f6;
+  --muted: #9ca3af;
+  --border: #2e303a;
+}
+
+/* Apply base styling */
+body {
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: system-ui, sans-serif;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
 }
