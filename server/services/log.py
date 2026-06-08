@@ -18,11 +18,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
 
 from server.models.log import ActivityLog
 from server.schemas.log import LogCreate, LogUpdate
 from server.services.storage import delete_media
+from server.utils.uuid import ensure_uuid
 
 _UTC = ZoneInfo("UTC")
 
@@ -35,7 +35,6 @@ def _parse_tz(tz_str: str) -> ZoneInfo:
 
 
 def _to_utc(dt: datetime, tz: ZoneInfo) -> datetime:
-    """Gắn timezone vào naive datetime rồi convert sang UTC."""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=tz)
     utc_dt = dt.astimezone(_UTC)
@@ -48,9 +47,7 @@ def _day_utc_range(d: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
     return start_local.astimezone(_UTC), end_local.astimezone(_UTC)
 
 
-async def _get_owned_log(
-    db: AsyncSession, log_id: UUID, user_id: UUID
-) -> ActivityLog:
+async def _get_owned_log(db: AsyncSession, log_id: UUID, user_id: UUID) -> ActivityLog:
     result = await db.execute(select(ActivityLog).where(ActivityLog.id == log_id))
     log = result.scalar_one_or_none()
     if log is None:
@@ -80,19 +77,16 @@ async def get_logs_by_date(
     return result.scalars().all()
 
 
-async def create_log(
-    db: AsyncSession, user_id: UUID, data: LogCreate
-) -> ActivityLog:
+async def create_log(db: AsyncSession, user_id: UUID, data: LogCreate) -> ActivityLog:
     tz = _parse_tz(data.timezone)
     logged_at = _to_utc(data.start_time, tz)
     duration_hours = (data.end_time - data.start_time).total_seconds() / 3600
 
-    ensure_uuid = user_id if isinstance(user_id, UUID) else UUID(str(user_id))
-
     log = ActivityLog(
-        user_id=ensure_uuid,
+        user_id=ensure_uuid(user_id),
         activity_type=data.activity_type,
         duration_hours=round(duration_hours, 4),
+        intensity=data.intensity,
         note=data.note,
         media_url=data.media_url,
         logged_at=logged_at,
@@ -111,22 +105,19 @@ async def update_log(
     background_tasks: BackgroundTasks,
 ) -> ActivityLog:
     log = await _get_owned_log(db, log_id, user_id)
-    updated_fields = data.model_fields_set  # chỉ fields client gửi lên
+    updated_fields = data.model_fields_set
 
-    # media_url thay đổi (bao gồm set null) → xóa file cũ
     if "media_url" in updated_fields and log.media_url and log.media_url != data.media_url:
         background_tasks.add_task(delete_media, log.media_url)
 
-    # Update các fields thông thường (note, activity_type, media_url)
     for field in updated_fields - {"start_time", "end_time", "timezone"}:
         setattr(log, field, getattr(data, field))
 
-    # Update time fields
     if "start_time" in updated_fields:
         if not data.end_time or not data.timezone:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="Missing end_time or timezone for time update"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing end_time or timezone for time update",
             )
         tz = _parse_tz(data.timezone)
         log.logged_at = _to_utc(data.start_time, tz)
