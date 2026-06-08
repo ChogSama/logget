@@ -99,60 +99,45 @@ async def analyze_day(
     gemini,
     summary: DailySummary,
 ) -> DailySummary:
-    """
-    Hệ thống phân tích có điều kiện trạng thái (State Machine):
-    - Tránh Race Condition: Chặn trùng lặp khi đang PROCESSING.
-    - Phục hồi tiến trình dở dang khi FAILED: Không tính lại từ đầu.
-    - Quản lý Rate Limit: Đẩy vào luồng xử lý ban đêm (QUEUE_SLEEP_HOURS).
-    """
-    # Bước 1: Kiểm tra trạng thái đồng bộ tránh chạy trùng lặp
-    if summary.status == "PROCESSING":
-        # Trả về nguyên trạng để router bọc lỗi 425 Too Early bên ngoài
+    if summary.status == "PROCESSING" and summary.id is not None:
         return summary
 
-    # Đưa vào trạng thái PROCESSING để khóa luồng
     summary.status = "PROCESSING"
     await db.commit()
 
-    agg = lbs_service.aggregate_logs(logs)
-    prelim = lbs_service.compute_scores(agg, lbs_service.DEFAULT_RECOVERY)
-    prelim_lbs = lbs_service.compute_lbs(prelim)
-
-    if not agg.notes.strip():
-        # Không có note -> Không cần gọi AI, chạy thuần toán học trả SUCCESS ngay lập tức
-        return await _execute_pure_math_pipeline(db, user_uuid, target_date, agg, lbs_service.DEFAULT_RECOVERY, "Hệ thống ghi nhận dữ liệu hoạt động chuẩn hóa (Không có ghi chú bổ sung).", summary)
-
-    # Bước 2: Thiết lập Prompt
-    base_prompt = _load_prompt("daily_summary.txt")
-    user_data = (
-        f"\n\n---\nDỮ LIỆU HOẠT ĐỘNG HÔM NAY:\n"
-        f"- Làm việc: {round(agg.work_h, 2)} giờ\n"
-        f"- Ngủ: {round(agg.sleep_h, 2)} giờ\n"
-        f"- Giao tiếp xã hội: {round(agg.social_h, 2)} giờ\n"
-        f"- Vận động: {round(agg.exercise_mpa_h + agg.exercise_vpa_h, 2)} giờ\n"
-        f"- Điểm LBS sơ bộ: {prelim_lbs:.1f}\n\n"
-        f"GHI CHÚ NGƯỜI DÙNG:\n{agg.notes}\n"
-    )
-
-    # Bước 3: Gọi AI và phân tách lỗi (Chống sập đổ toán học)
-    raw_response, status_code = await _call_gemini_with_handling(gemini, base_prompt + user_data)
-
-    if status_code == "RATE_LIMIT":
-        # Đánh dấu đưa vào hàng đợi xử lý ban đêm khi người dùng ngủ
-        summary.status = "QUEUE_SLEEP_HOURS"
-        summary.ai_summary = "Yêu cầu đang được xếp hàng chờ xử lý tự động vào khung giờ thấp điểm (đêm nay). Trạng thái hiển thị sẽ tự động cập nhật sau."
-        await db.commit()
-        return summary
-
-    if status_code == "API_ERROR" or not raw_response:
-        # Giữ nguyên trạng thái FAILED để người dùng thực hiện Force re-analysis (Không mất dữ liệu toán học làm dở)
-        summary.status = "FAILED"
-        summary.ai_summary = "Hệ thống AI gặp sự cố kết nối vật lý. Tiến trình lưu trữ an toàn. Vui lòng bấm thử lại."
-        await db.commit()
-        return summary
-
-    # Bước 4: Phân tách cấu trúc JSON an toàn
     try:
+        agg = lbs_service.aggregate_logs(logs)
+        prelim = lbs_service.compute_scores(agg, lbs_service.DEFAULT_RECOVERY)
+        prelim_lbs = lbs_service.compute_lbs(prelim)
+
+        if not agg.notes.strip():
+            return await _execute_pure_math_pipeline(db, user_uuid, target_date, agg, lbs_service.DEFAULT_RECOVERY, "Hệ thống ghi nhận dữ liệu hoạt động chuẩn hóa (Không có ghi chú bổ sung).", summary)
+
+        base_prompt = _load_prompt("daily_summary.txt")
+        user_data = (
+            f"\n\n---\nDỮ LIỆU HOẠT ĐỘNG HÔM NAY:\n"
+            f"- Làm việc: {round(agg.work_h, 2)} giờ\n"
+            f"- Ngủ: {round(agg.sleep_h, 2)} giờ\n"
+            f"- Giao tiếp xã hội: {round(agg.social_h, 2)} giờ\n"
+            f"- Vận động: {round(agg.exercise_mpa_h + agg.exercise_vpa_h, 2)} giờ\n"
+            f"- Điểm LBS sơ bộ: {prelim_lbs:.1f}\n\n"
+            f"GHI CHÚ NGƯỜI DÙNG:\n{agg.notes}\n"
+        )
+
+        raw_response, status_code = await _call_gemini_with_handling(gemini, base_prompt + user_data)
+
+        if status_code == "RATE_LIMIT":
+            summary.status = "QUEUE_SLEEP_HOURS"
+            summary.ai_summary = "Yêu cầu đang được xếp hàng chờ xử lý tự động vào khung giờ thấp điểm (đêm nay). Trạng thái hiển thị sẽ tự động cập nhật sau."
+            await db.commit()
+            return summary
+
+        if status_code == "API_ERROR" or not raw_response:
+            summary.status = "FAILED"
+            summary.ai_summary = "Hệ thống AI gặp sự cố kết nối vật lý. Tiến trình lưu trữ an toàn. Vui lòng bấm thử lại."
+            await db.commit()
+            return summary
+
         raw_response = raw_response.strip()
         if "```" in raw_response:
             parts = raw_response.split("```")
@@ -167,10 +152,9 @@ async def analyze_day(
         ai_summary = data.get("summary") or "Hoàn thành phân tích chỉ số hồi phục."
         
         return await _execute_pure_math_pipeline(db, user_uuid, target_date, agg, x_r, ai_summary, summary)
-    except Exception:
-        # Lỗi phân tách dữ liệu (Parsing Error) coi như FAILED tiến trình
+    except Exception as e:
         summary.status = "FAILED"
-        summary.ai_summary = "Cấu trúc phản hồi AI không đồng nhất với bộ lọc hệ thống. Tiến trình được giữ lại để phân tích tiếp lần sau."
+        summary.ai_summary = f"Hệ thống gặp sự cố xử lý nội bộ: {str(e)}. Tiến trình được bảo lưu an toàn."
         await db.commit()
         return summary
 
