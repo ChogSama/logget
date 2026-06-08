@@ -21,7 +21,8 @@ from sqlalchemy import (
     Boolean, Date, DateTime, Enum, Float, ForeignKey,
     String, Text, UniqueConstraint, func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+
+from sqlalchemy.dialects.postgresql import UUID, ENUM as PG_ENUM
 from sqlalchemy.orm import Mapped, mapped_column
 
 from server.database import Base
@@ -40,7 +41,7 @@ class ActivityLog(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     activity_type: Mapped[ActivityType] = mapped_column(Enum(ActivityType, name="activity_type_enum"), nullable=False)
     duration_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
-    intensity: Mapped[IntensityType | None] = mapped_column(Enum(IntensityType, name="intensity_type_enum"), nullable=True)
+    intensity: Mapped[IntensityType | None] = mapped_column(PG_ENUM(IntensityType, name="intensity_type_enum", create_type=True), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     media_url: Mapped[str | None] = mapped_column(String, nullable=True)
     logged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
