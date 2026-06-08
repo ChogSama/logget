@@ -1,9 +1,8 @@
 """
 server/routers/dashboard.py — prefix: /dashboard
 
-Balance target: lbs_score >= 65 AND imbalance_risk is False.
-Streak: ngày liên tiếp theo lịch (có gap → reset), tính từ ngày gần nhất có SUCCESS summary.
-burnout_alert: tính từ EWMA đã lưu trong DailySummary của ngày hôm nay, không update EWMA.
+Provides aggregate statistics, consecutive streaks, and data processing for the UI dashboard.
+Integrates pure-mathematical filters to calculate user lifestyle consistency ratios.
 """
 from datetime import date as date_type, timedelta
 
@@ -25,7 +24,8 @@ _BALANCE_LBS = 65.0
 
 def _meets_target(s: DailySummary) -> bool:
     return (
-        s.lbs_score is not None
+        s.status == "SUCCESS"
+        and s.lbs_score is not None
         and s.lbs_score >= _BALANCE_LBS
         and s.imbalance_risk is False
     )
@@ -39,7 +39,6 @@ async def _recent_summaries(db: AsyncSession, user_id, days: int) -> list[DailyS
             and_(
                 DailySummary.user_id == user_id,
                 DailySummary.date >= cutoff,
-                DailySummary.status == "SUCCESS",
             )
         )
         .order_by(DailySummary.date.desc())
@@ -48,7 +47,7 @@ async def _recent_summaries(db: AsyncSession, user_id, days: int) -> list[DailyS
 
 
 def _compute_streak(summaries: list[DailySummary]) -> int:
-    """summaries phải được sắp xếp theo date DESC."""
+    """Yêu cầu mảng đầu vào sắp xếp theo thứ tự thời gian giảm dần (date DESC)."""
     streak = 0
     prev_date = None
     for s in summaries:
@@ -57,7 +56,8 @@ def _compute_streak(summaries: list[DailySummary]) -> int:
                 streak += 1
                 prev_date = s.date
             else:
-                break
+                if s.status == "SUCCESS" or s.date < date_type.today():
+                    break
         else:
             if s.date == prev_date - timedelta(days=1) and _meets_target(s):
                 streak += 1
@@ -79,7 +79,7 @@ async def get_overview(
     today_summary = next((s for s in summaries_30 if s.date == today), None)
 
     burnout_alert = None
-    if today_summary and today_summary.acute_workload is not None:
+    if today_summary and today_summary.status == "SUCCESS" and today_summary.acute_workload is not None:
         count_result = await db.execute(
             select(func.count(DailySummary.id)).where(
                 and_(
@@ -104,8 +104,8 @@ async def get_overview(
 
     return OverviewResponse(
         date=today,
-        lbs_score=today_summary.lbs_score if today_summary else None,
-        imbalance_risk=today_summary.imbalance_risk if today_summary else None,
+        lbs_score=today_summary.lbs_score if (today_summary and today_summary.status == "SUCCESS") else None,
+        imbalance_risk=today_summary.imbalance_risk if (today_summary and today_summary.status == "SUCCESS") else None,
         burnout_alert=burnout_alert,
         current_streak=streak,
         balance_ratio=ratio,
@@ -122,7 +122,8 @@ async def get_lbs_trend(
     user_uuid = ensure_uuid(current_user_id)
     days = 7 if range == "week" else 30
     summaries = await _recent_summaries(db, user_uuid, days)
-    asc = sorted(summaries, key=lambda s: s.date)
+    success_only = [s for s in summaries if s.status == "SUCCESS"]
+    asc = sorted(success_only, key=lambda s: s.date)
     return LBSTrendResponse(
         range=range,
         data=[LBSTrendPoint.model_validate(s) for s in asc],

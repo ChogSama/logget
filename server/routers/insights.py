@@ -1,19 +1,12 @@
 """
 server/routers/insights.py — prefix: /insights
 
-GET /insights/daily:
-    Lazy eval — trả cache nếu SUCCESS; 202 nếu PROCESSING; trigger analyze_day nếu chưa có/FAILED.
-    Race condition (concurrent requests): IntegrityError → trả trạng thái hiện tại.
-
-POST /insights/analyze:
-    Force re-analysis bất kể status hiện tại.
-
-GET /insights/patterns:
-    Gọi Gemini phân tích N ngày gần nhất (range=week|month), lưu AIInsight.
+Routing layer for daily lifestyle analysis and pattern evaluation.
+Handles state transition routing and blocks concurrent duplicate operations.
 """
 from datetime import date as date_type
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +35,7 @@ async def _trigger_analysis(
 
 @router.get("/daily", response_model=DailyInsightResponse)
 async def get_daily_insight(
+    response: Response,
     date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
     timezone: str = Query(default="Asia/Ho_Chi_Minh"),
     request: Request = None,
@@ -53,17 +47,19 @@ async def get_daily_insight(
 
     summary = await ai_service.get_daily_summary(db, user_uuid, target_date)
 
-    if summary and summary.status == "SUCCESS":
-        return summary
-    if summary and summary.status == "PROCESSING":
-        return DailyInsightResponse(date=target_date, status="PROCESSING")
+    if summary:
+        if summary.status == "SUCCESS":
+            return summary
+        if summary.status == "PROCESSING":
+            response.status_code = status.HTTP_202_ACCEPTED
+            return DailyInsightResponse(date=target_date, status="PROCESSING")
+        if summary.status in ["FAILED", "QUEUE_SLEEP_HOURS"]:
+            # Giữ nguyên trạng thái lỗi, không tự ý kích hoạt lại pipeline
+            return summary
 
-    # Create/reset PROCESSING record
-    if summary is None:
-        summary = DailySummary(user_id=user_uuid, date=target_date, status="PROCESSING")
-        db.add(summary)
-    else:
-        summary.status = "PROCESSING"
+    # Chỉ khởi tạo chu kỳ khi chưa tồn tại bất kỳ dữ liệu nào
+    summary = DailySummary(user_id=user_uuid, date=target_date, status="PROCESSING")
+    db.add(summary)
 
     try:
         await db.commit()
@@ -71,8 +67,8 @@ async def get_daily_insight(
         await db.rollback()
         summary = await ai_service.get_daily_summary(db, user_uuid, target_date)
         stat = summary.status if summary else "PROCESSING"
-        if summary and stat == "SUCCESS":
-            return summary
+        if stat == "PROCESSING":
+            response.status_code = status.HTTP_202_ACCEPTED
         return DailyInsightResponse(date=target_date, status=stat)
 
     return await _trigger_analysis(db, user_uuid, target_date, timezone, request.app.state.gemini, summary)
