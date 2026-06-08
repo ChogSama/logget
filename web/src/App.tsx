@@ -1,12 +1,19 @@
-import './App.css'
-import { Routes } from 'react-router-dom'
+import { Routes, Route } from "react-router-dom"
 
-function App() {
+import Home from "./pages/Home"
+import Login from "./pages/Login"
+import Log from "./pages/Log"
+import Dashboard from "./pages/Dashboard"
+
+export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/log" element={<Log />} />
+      <Route path="/dashboard" element={<Dashboard />} />
       
+      <Route path="*" element={<div>404 Not Found</div>} />
     </Routes>
   )
 }
-
-export default App
