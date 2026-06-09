@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import path from "path"
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '..', 'VITE_')
@@ -10,32 +10,23 @@ export default defineConfig(({ mode }) => {
     envDir: '..',
     plugins: [
       react(),
-      tailwindcss(),
-
       VitePWA({
         registerType: 'autoUpdate',
-
         devOptions: {
           enabled: true,
         },
-
         workbox: {
           globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
         },
-
         manifest: {
           name: 'logget',
           short_name: 'logget',
           description: 'AI-powered Micro-Journaling for Student Well-Being',
-
           theme_color: '#aa3bff',
           background_color: '#ffffff',
-
           display: 'standalone',
-
           scope: '/',
           start_url: '/',
-
           icons: [
             {
               src: '/pwa-192.png',
@@ -51,13 +42,18 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
     server: {
       allowedHosts: [
-        '*.ngrok-free.app',            // Ngrok Tunnel
-        '*.trycloudflare.com',         // Cloudflare Tunnel
-        '*.app.github.dev',            // GitHub Codespaces Tunnel
-        '*.ngrok-free.dev',            // Ngrok Tunnel (duplicate for safety)
-        'pointy-pointer-unlovable.ngrok-free.dev', // Specific Ngrok Tunnel
+        '*.ngrok-free.app',
+        '*.trycloudflare.com',
+        '*.app.github.dev',
+        '*.ngrok-free.dev',
+        'pointy-pointer-unlovable.ngrok-free.dev',
       ],
       proxy: {
         '/api': {
