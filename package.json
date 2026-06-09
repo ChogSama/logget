@@ -28,16 +28,17 @@
     "db:revision": "cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini revision --autogenerate -m"
   },
   "dependencies": {
-    "@base44/sdk": "^0.8.31",
-    "@base44/vite-plugin": "^1.0.21",
-    
     "@hookform/resolvers": "^5.4.0",
+    "@radix-ui/react-label": "^2.1.2",
+    "@radix-ui/react-slot": "^1.1.2",
+    "@radix-ui/react-toast": "^1.2.2",
     "@tanstack/react-query": "^5.101.0",
     "axios": "^1.16.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "framer-motion": "^12.40.0",
+    "input-otp": "^1.4.2",
     "lodash": "^4.18.1",
     "lucide-react": "^1.16.0",
     "next-themes": "^0.4.6",
