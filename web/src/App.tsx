@@ -7,12 +7,12 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import Login from '@/pages/Login';
-import Register from '@/pages/Register';
-import ForgotPassword from '@/pages/ForgotPassword';
-import ResetPassword from '@/pages/ResetPassword';
+import Login from '@/screens/Login';
+import Register from '@/screens/Register';
+import ForgotPassword from '@/screens/ForgotPassword';
+import ResetPassword from '@/screens/ResetPassword';
 import { Navigate } from 'react-router-dom';
-import Home from '@/pages/Home';
+import Home from '@/screens/Home';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -44,9 +44,15 @@ const AuthenticatedApp = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+
+      {/**/}
+      <Route path="/" element={<Home />} />
+      {/**/}
+      {/*
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route path="/" element={<Home />} />
       </Route>
+      */}
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { axiosClient as base44 } from "@/services/axiosClient";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import BottomNav from "@/components/logget/BottomNav";
 import CameraScreen from "@/components/logget/CameraScreen";
-import LogTab from "@/pages/LogTab";
-import HealthTab from "@/pages/HealthTab";
-import HomeTab from "@/pages/HomeTab";
+import LogTab from "@/screens/LogTab";
+import HealthTab from "@/screens/HealthTab";
+import HomeTab from "@/screens/HomeTab";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("home");
