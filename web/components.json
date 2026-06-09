@@ -1,0 +1,26 @@
+{
+  "_comment1": "shadcn CLI có thể không hoạt động tốt với file structure ở hiện tại(version 0.0.1)",
+  "_comment2": "cần phải chuyển web/ thành root folder và cũng có package.json ở đó",
+  "_comment3": "hoặc thêm đuôi --cwd web/ vào các lệnh shadcn CLI, khá rườm rà",
+  "_comment4": "nếu thêm đuôi --cwd web/ vào các lệnh, có thể hỏi LLM chatbot về chi tiết lệnh",
+
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": false,
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "src/index.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "iconLibrary": "lucide"
+}
