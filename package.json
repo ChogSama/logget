@@ -28,6 +28,9 @@
     "db:revision": "cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini revision --autogenerate -m"
   },
   "dependencies": {
+    "@base44/sdk": "^0.8.31",
+    "@base44/vite-plugin": "^1.0.21",
+    
     "@hookform/resolvers": "^5.4.0",
     "@tanstack/react-query": "^5.101.0",
     "axios": "^1.16.1",
