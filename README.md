@@ -92,13 +92,25 @@ npx cross-env PYTHONPATH=. uv run alembic -c server/alembic.ini history         
 
 ```
 ├── server/              # FastAPI backend
-│   └── main.py
+│   ├── alembic/
+│   ├── alembic.ini
+│   ├── main.py
+│   └── ...
+│
 ├── web/                 # React + Vite frontend
 │   ├── src/
-│   └── vite.config.ts
+│   ├── tsconfig.json
+│   ├── *.config.json    # eslint, postcss, tailwind
+│   ├── vite.config.ts
+│   └── ...
+│
+├── .env
 ├── package.json         # Node.js deps (npm)
 ├── pyproject.toml       # Python deps (uv)
-└── setup.js             # cross-platform setup helper
+├── setup.js             # cross-platform setup helper
+├── tsconfig.json
+└── ...
+
 ```
 
 ## Contributing
