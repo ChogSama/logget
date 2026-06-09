@@ -1,7 +1,7 @@
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool
+from sqlalchemy import pool, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
@@ -33,6 +33,17 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    # Tự động khởi tạo TYPE ENUM nếu chưa tồn tại trong PostgreSQL hệ thống
+    connection.execute(text("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'intensity_type_enum') THEN
+                CREATE TYPE intensity_type_enum AS ENUM ('moderate', 'vigorous');
+            END IF;
+        END
+        $$;
+    """))
+    
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()

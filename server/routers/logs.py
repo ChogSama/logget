@@ -1,8 +1,8 @@
 """
 server/routers/logs.py
 """
-
 from uuid import UUID
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,15 +10,9 @@ from server.dependencies import get_current_user, get_db
 from server.schemas.log import LogCreate, LogResponse, LogUpdate
 from server.services import log as log_service
 from server.services.storage import generate_signed_params
+from server.utils.uuid import ensure_uuid
 
 router = APIRouter(prefix="/logs", tags=["logs"])
-
-
-def _ensure_uuid(user_id: any) -> UUID:
-    """Hàm bổ trợ ép kiểu dữ liệu sang UUID đối tượng."""
-    if isinstance(user_id, UUID):
-        return user_id
-    return UUID(str(user_id))
 
 
 @router.get("/upload-sign")
@@ -33,8 +27,7 @@ async def get_logs(
     db: AsyncSession = Depends(get_db),
     current_user_id: any = Depends(get_current_user),
 ):
-    user_uuid = _ensure_uuid(current_user_id)
-    return await log_service.get_logs_by_date(db, user_uuid, date, timezone)
+    return await log_service.get_logs_by_date(db, ensure_uuid(current_user_id), date, timezone)
 
 
 @router.post("", response_model=LogResponse, status_code=201)
@@ -43,8 +36,7 @@ async def create_log(
     db: AsyncSession = Depends(get_db),
     current_user_id: any = Depends(get_current_user),
 ):
-    user_uuid = _ensure_uuid(current_user_id)
-    return await log_service.create_log(db, user_uuid, data)
+    return await log_service.create_log(db, ensure_uuid(current_user_id), data)
 
 
 @router.patch("/{log_id}", response_model=LogResponse)
@@ -55,8 +47,7 @@ async def update_log(
     db: AsyncSession = Depends(get_db),
     current_user_id: any = Depends(get_current_user),
 ):
-    user_uuid = _ensure_uuid(current_user_id)
-    return await log_service.update_log(db, log_id, user_uuid, data, background_tasks)
+    return await log_service.update_log(db, log_id, ensure_uuid(current_user_id), data, background_tasks)
 
 
 @router.delete("/{log_id}", status_code=204)
@@ -66,5 +57,4 @@ async def delete_log(
     db: AsyncSession = Depends(get_db),
     current_user_id: any = Depends(get_current_user),
 ):
-    user_uuid = _ensure_uuid(current_user_id)
-    await log_service.delete_log(db, log_id, user_uuid, background_tasks)
+    await log_service.delete_log(db, log_id, ensure_uuid(current_user_id), background_tasks)
