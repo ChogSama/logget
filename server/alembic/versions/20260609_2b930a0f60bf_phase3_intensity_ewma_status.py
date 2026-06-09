@@ -1,8 +1,8 @@
 """phase3_intensity_ewma_status
 
-Revision ID: 6c01fa2eb533
+Revision ID: 2b930a0f60bf
 Revises: 893377fc43a7
-Create Date: 2026-06-08 10:42:09.256056
+Create Date: 2026-06-09 11:36:50.193509
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '6c01fa2eb533'
+revision: str = '2b930a0f60bf'
 down_revision: Union[str, None] = '893377fc43a7'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

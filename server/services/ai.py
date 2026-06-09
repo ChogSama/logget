@@ -6,10 +6,11 @@ Orchestration layer: Gemini API + State Machine + Batch Processing for Sleep Hou
 import asyncio
 import json
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, time as time_type, timedelta
 from functools import lru_cache
 from pathlib import Path
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from google.genai.errors import APIError
 from sqlalchemy import and_, func, select
@@ -22,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 _MODEL = "gemini-2.0-flash"
+_UTC = ZoneInfo("UTC")
+_DEFAULT_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 @lru_cache(maxsize=None)
@@ -87,6 +90,35 @@ async def _get_ewma_state(
     prev_aw = prev.acute_workload if (prev and prev.acute_workload is not None) else 0.0
     prev_cw = prev.chronic_workload if (prev and prev.chronic_workload is not None) else 0.0
     return prev_aw, prev_cw, prev_count + 1
+
+
+async def get_daily_summary(
+    db: AsyncSession, user_id: UUID, target_date: date
+) -> DailySummary | None:
+    result = await db.execute(
+        select(DailySummary).where(
+            and_(DailySummary.user_id == user_id, DailySummary.date == target_date)
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def _get_logs_for_date_batch(
+    db: AsyncSession, user_id: UUID, target_date: date
+) -> list[ActivityLog]:
+    """Query logs cho batch processor — dùng _DEFAULT_TZ (Asia/Ho_Chi_Minh) làm fallback."""
+    start_utc = datetime.combine(target_date, time_type.min, tzinfo=_DEFAULT_TZ).astimezone(_UTC)
+    end_utc = datetime.combine(target_date, time_type.max, tzinfo=_DEFAULT_TZ).astimezone(_UTC)
+    result = await db.execute(
+        select(ActivityLog).where(
+            and_(
+                ActivityLog.user_id == user_id,
+                ActivityLog.logged_at >= start_utc,
+                ActivityLog.logged_at <= end_utc,
+            )
+        )
+    )
+    return result.scalars().all()
 
 
 # --- Main Pipeline & State Machine ---
@@ -214,12 +246,12 @@ async def process_midnight_batch(db: AsyncSession, gemini_client) -> None:
         # Xây dựng Batch Prompt nén dữ liệu
         batch_prompt = _load_prompt("batch_sleep_summary.txt")
         bulk_data = []
+        agg_cache: dict[str, lbs_service.DayAggregate] = {}
         
         for s in summaries:
-            # Truy vấn ngược nhật ký thô của ngày lỗi đó để đồng bộ
-            logs_result = await db.execute(select(ActivityLog).where(and_(ActivityLog.user_id == user_id, func.date(ActivityLog.start_time) == s.date)))
-            day_logs = logs_result.scalars().all()
+            day_logs = await _get_logs_for_date_batch(db, user_id, s.date)
             agg = lbs_service.aggregate_logs(day_logs)
+            agg_cache[str(s.date)] = agg
             bulk_data.append({
                 "date": str(s.date),
                 "work_h": agg.work_h,
@@ -242,7 +274,7 @@ async def process_midnight_batch(db: AsyncSession, gemini_client) -> None:
                 if raw_resp.startswith("json"):
                     raw_resp = raw_resp[4:]
 
-            results_dict = json.loads(raw_resp.strip())  # Kỳ vọng định dạng: {"YYYY-MM-DD": {"psychological_detachment":... , "summary": "..."}}
+            results_dict = json.loads(raw_resp.strip())
             
             for s in summaries:
                 date_str = str(s.date)
@@ -253,10 +285,9 @@ async def process_midnight_batch(db: AsyncSession, gemini_client) -> None:
                     x_r = min(100.0, max(0.0, x_r))
                     ai_summary = day_res.get("summary") or "Phân tích hoàn thiện trong chu kỳ nén dữ liệu đêm."
                     
-                    # Chạy nốt toán học lưu DB
-                    logs_result = await db.execute(select(ActivityLog).where(and_(ActivityLog.user_id == user_id, func.date(ActivityLog.start_time) == s.date)))
-                    day_logs = logs_result.scalars().all()
-                    agg = lbs_service.aggregate_logs(day_logs)
+                    agg = agg_cache.get(date_str)
+                    if agg is None:
+                        continue
                     await _execute_pure_math_pipeline(db, user_id, s.date, agg, x_r, ai_summary, s)
         except Exception as e:
             logger.error(f"Batch processing failed for user {user_id}: {str(e)}")

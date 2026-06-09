@@ -10,8 +10,7 @@ Ownership: mọi mutation kiểm tra log.user_id == requesting user_id → 403 n
 
 PATCH media: nếu media_url thay đổi (kể cả set null), file cũ trên Cloudinary bị xóa qua BackgroundTask.
 """
-
-from datetime import datetime, date, time as time_type
+from datetime import datetime, date, time as time_type, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -37,8 +36,14 @@ def _parse_tz(tz_str: str) -> ZoneInfo:
 def _to_utc(dt: datetime, tz: ZoneInfo) -> datetime:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=tz)
-    utc_dt = dt.astimezone(_UTC)
-    return utc_dt.replace(tzinfo=None)
+    return dt.astimezone(_UTC).replace(tzinfo=None)
+
+
+def _naive_utc(dt: datetime) -> datetime:
+    """Chuẩn hóa datetime về naive UTC để dùng trong phép toán thời gian."""
+    if dt.tzinfo is not None:
+        return dt.astimezone(_UTC).replace(tzinfo=None)
+    return dt
 
 
 def _day_utc_range(d: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
@@ -113,17 +118,32 @@ async def update_log(
     for field in updated_fields - {"start_time", "end_time", "timezone"}:
         setattr(log, field, getattr(data, field))
 
-    if "start_time" in updated_fields:
-        if not data.end_time or not data.timezone:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Missing end_time or timezone for time update",
-            )
-        tz = _parse_tz(data.timezone)
-        log.logged_at = _to_utc(data.start_time, tz)
-        log.duration_hours = round(
-            (data.end_time - data.start_time).total_seconds() / 3600, 4
-        )
+    if "start_time" in updated_fields or "end_time" in updated_fields:
+        tz = _parse_tz(data.timezone)  # schema đã validate, _parse_tz là safety net
+        has_new_start = "start_time" in updated_fields
+        has_new_end = "end_time" in updated_fields
+
+        existing_start = _naive_utc(log.logged_at)
+        existing_end = existing_start + timedelta(hours=log.duration_hours or 0)
+
+        if has_new_start and has_new_end:
+            new_start = _to_utc(data.start_time, tz)
+            new_end = _to_utc(data.end_time, tz)
+            log.logged_at = new_start
+            log.duration_hours = round((new_end - new_start).total_seconds() / 3600, 4)
+        elif has_new_start:
+            new_start = _to_utc(data.start_time, tz)
+            new_duration = (existing_end - new_start).total_seconds() / 3600
+            if new_duration <= 0:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "new start_time must be before existing end_time")
+            log.logged_at = new_start
+            log.duration_hours = round(new_duration, 4)
+        else:  # has_new_end only
+            new_end = _to_utc(data.end_time, tz)
+            new_duration = (new_end - existing_start).total_seconds() / 3600
+            if new_duration <= 0:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "new end_time must be after existing start_time")
+            log.duration_hours = round(new_duration, 4)
 
     await db.commit()
     await db.refresh(log)

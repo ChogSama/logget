@@ -159,3 +159,30 @@ Nếu tách `web/` và `server/` thành 2 repo riêng độc lập:
 * Điều chỉnh script `dev:server` thành: `uv run fastapi dev main.py`.
 * Đặt `.env` tại thư mục gốc của repo backend để Pydantic nạp trực tiếp.
 * **Cấu hình CORS bắt buộc:** Thêm `CORSMiddleware` vào FastAPI và khai báo tường minh danh sách domain được phép (Origins) từ URL của repo Frontend do không còn Vite proxy.
+---
+
+## Xử lý Ngoại lệ và Giao dịch (Database Transactions)
+
+* **Quản lý trạng thái giao dịch khi thất bại:** Quy tắc bắt buộc thực hiện `db.rollback()` trước khi cập nhật trạng thái lỗi hoặc thực hiện bất kỳ lệnh `commit()` nào khác trong khối `except Exception`. Khi exception xuất phát từ tầng DB, transaction block đã bị đánh dấu aborted — gọi `commit()` trực tiếp sẽ kích hoạt `InvalidRequestError` lồng nhau. Pattern chuẩn tại `_run_analysis_safe` (`insights.py`):
+  ```python
+  except HTTPException:
+      raise  # Không nuốt lỗi validation — để FastAPI xử lý
+  except Exception as e:
+      await db.rollback()
+      summary.status = "FAILED"
+      await db.commit()
+  ```
+
+## Xác thực và Chuẩn hóa Dữ liệu Đầu vào (Input Validation)
+
+* **Kiểm soát chuỗi IANA Timezone:** Quy định validate định dạng múi giờ tại tầng schema để chặn sớm ngoại lệ `ZoneInfoNotFoundError`. Dùng `@field_validator("timezone")` gọi `ZoneInfo(v)` trong `LogCreate`, `LogUpdate`, `AnalyzeRequest` — trả 422 trước khi xuống service layer. `_parse_tz()` tại service vẫn giữ làm safety net.
+* **Ràng buộc định dạng chuỗi ngày (Date String):** Quy chuẩn sử dụng kiểu dữ liệu `date` trực tiếp trong Pydantic request schema (`AnalyzeRequest.date: date`) thay vì `str` — Pydantic tự parse và validate ISO format, trả 422 nếu không đúng thay vì `ValueError` → 500 tại router. Với Query param dùng `pattern=r"^\d{4}-\d{2}-\d{2}$"`.
+
+## Thiết kế Phương thức Cập nhật (PATCH Method Constraints)
+
+* **Tính độc lập của cập nhật một phần:** Quy tắc thiết kế logic cập nhật thời gian trong phương thức PATCH, cho phép cập nhật độc lập các trường `start_time` hoặc `end_time` bằng cách đối chiếu dữ liệu hiện tại trong database thay vì bắt buộc truyền đồng thời cả hai. `timezone` vẫn bắt buộc khi gửi bất kỳ time field nào. `duration_hours` tính lại từ giá trị mới và giá trị DB hiện tại (`_naive_utc(log.logged_at) + timedelta(hours=log.duration_hours)`).
+
+## Quy ước Chuỗi Tích lũy và Chỉ số Toán học
+
+* **Đồng bộ thời gian tính Streak:** Quy tắc tính toán mốc ngày hiện tại dựa trên múi giờ cục bộ của người dùng thay vì sử dụng thời gian mặc định của server. Hàm `_local_today(timezone)` dùng `pytz` dùng chung cho `/overview`, `/streak`, `/lbs` — tránh lệch ngày với user Việt Nam (UTC+7) trong khung giờ 00:00–06:59. Không sử dụng `date.today()` trong bất kỳ endpoint nào phụ thuộc ngày địa phương của người dùng.
+* **Kiểm soát tham số Scoring Engine:** Ràng buộc bất biến đối với các tham số hình học Plateau-Gaussian và trọng số EWMA/ACWR tại tầng service toán học (`services/lbs.py`). Các hằng số module-level (`_SIGMA_*`, `_LAMBDA_*`, `_WEIGHTS`) không được sửa đổi ngoài file — mọi thay đổi tham số chỉ thực hiện tại `lbs.py` và phải cập nhật đồng thời header comment để duy trì tính nhất quán tài liệu hóa.

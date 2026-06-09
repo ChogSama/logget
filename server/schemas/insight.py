@@ -3,15 +3,25 @@ server/schemas/insight.py
 """
 from datetime import date, datetime
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from server.models.log import InsightType
 
 
 class AnalyzeRequest(BaseModel):
-    date: str  # YYYY-MM-DD
+    date: date
     timezone: str = "Asia/Ho_Chi_Minh"
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: str) -> str:
+        try:
+            ZoneInfo(v)
+        except (ZoneInfoNotFoundError, Exception):
+            raise ValueError(f"Invalid IANA timezone: {v}")
+        return v
 
 
 class DailyInsightResponse(BaseModel):
