@@ -27,5 +27,6 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "postcss.config.js", "tailwind.config.js"]
+  "include": ["src", "postcss.config.js", "tailwind.config.js"],
+  "exclude": ["node_modules", "dist", "components/ui/*"]
 }
