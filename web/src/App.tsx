@@ -2,7 +2,8 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query'
 
 import { queryClientInstance } from '@/services/query-client'
-import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { AuthProvider } from '@/context/AuthProvider';
+import { useAuth } from '@/hooks/useAuth';
 
 import ScrollToTop from './components/ScrollToTop';
 import { Toaster } from "@/components/ui/toaster"

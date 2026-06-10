@@ -17,7 +17,11 @@ Dự án dùng **single root `package.json**` thay vì tách riêng cấu hình 
 "tsBuildInfoFile": "../node_modules/.tmp/tsconfig.app.tsbuildinfo"
 
 ```
-
+* **Cơ chế kiểm tra giao diện:** Lỗi xảy ra khi file `.jsx` / `.tsx` vừa xuất cấu trúc React Component vừa xuất hàm hoặc hằng số. Dự án yêu cầu tách riêng các thành phần này để tránh lỗi tải lại trang khi lập trình. Hiện tại, một số file đang dùng tạm các comment sau để ẩn cảnh báo.
+```
+// eslint-disable-next-line
+// eslint-disable-next-line react-refresh/only-export-components
+```
 
 * **Environment variables:** Do Vite chạy từ `web/`, cấu hình trong `web/vite.config.ts` bắt buộc dùng `envDir: '..'` và `loadEnv(mode, '..', 'VITE_')` để ép hệ thống đọc tệp `.env` từ root cho cả config lẫn mã nguồn React (`import.meta.env.VITE_*`).
 * **Dev proxy:** Mọi request dạng `/api/*` được Vite tự động proxy sang FastAPI theo cấu hình từ biến môi trường, tránh lỗi CORS trong môi trường dev và không hardcode URL.
