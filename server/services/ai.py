@@ -272,6 +272,7 @@ async def analyze_day(
                     "Yêu cầu đang được xếp hàng chờ xử lý tự động vào khung giờ thấp điểm "
                     "(đêm nay). Trạng thái hiển thị sẽ tự động cập nhật sau."
                 )
+                print(f"[AI_RATE_LIMIT_EXCEED] Status: {status_code} - Request moved to queue.")
             else:
                 final_status = "FAILED"
                 ai_summary = (
