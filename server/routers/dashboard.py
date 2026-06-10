@@ -25,7 +25,6 @@ _STREAK_MIN_SCORE = 65.0
 
 
 def _local_today(timezone: str) -> date_type:
-    """Tính ngày địa phương của user — dùng cho mọi endpoint thay vì date_type.today()."""
     try:
         tz = pytz.timezone(timezone)
     except Exception:
@@ -34,10 +33,8 @@ def _local_today(timezone: str) -> date_type:
 
 
 def _is_balanced(s: DailySummary) -> bool:
-    """Balance target: SUCCESS + lbs_score >= 65 + imbalance_risk is False (không phải None)."""
     return (
-        s.status == "SUCCESS"
-        and s.lbs_score is not None
+        s.lbs_score is not None
         and s.lbs_score >= _STREAK_MIN_SCORE
         and s.imbalance_risk is False
     )
@@ -55,8 +52,7 @@ def _compute_streak(summary_map: dict, today: date_type) -> int:
     if check_date in summary_map:
         if _is_balanced(summary_map[check_date]):
             streak += 1
-        # Dù balanced hay không, luôn check hôm qua — không phá streak vì today chưa xong
-            check_date -= timedelta(days=1)
+        check_date -= timedelta(days=1)
     else:
         check_date -= timedelta(days=1)
 
@@ -88,18 +84,18 @@ async def get_overview(
         return OverviewResponse(date=local_today, total_logged_days=0)
 
     summary_map = {s.date: s for s in summaries}
-    success_summaries = [s for s in summaries if s.status == "SUCCESS"]
-    total_success = len(success_summaries)
+    scored_summaries = [s for s in summaries if s.lbs_score is not None]
+    total_scored = len(scored_summaries)
 
-    balanced_days = sum(1 for s in success_summaries if _is_balanced(s))
-    ratio = round(balanced_days / total_success, 4) if total_success > 0 else 0.0
+    balanced_days = sum(1 for s in scored_summaries if _is_balanced(s))
+    ratio = round(balanced_days / total_scored, 4) if total_scored > 0 else 0.0
     streak = _compute_streak(summary_map, local_today)
 
     today_summary = summary_map.get(local_today)
     burnout_alert = "green"
-    if success_summaries:
-        latest = success_summaries[0]
-        day_index = sum(1 for s in success_summaries if s.date <= latest.date)
+    if scored_summaries:
+        latest = scored_summaries[0]
+        day_index = sum(1 for s in scored_summaries if s.date <= latest.date)
         ewma_res = lbs_service.burnout_from_stored(
             latest.acute_workload or 0.0,
             latest.chronic_workload or 0.0,
@@ -109,12 +105,12 @@ async def get_overview(
 
     return OverviewResponse(
         date=local_today,
-        lbs_score=today_summary.lbs_score if (today_summary and today_summary.status == "SUCCESS") else None,
-        imbalance_risk=today_summary.imbalance_risk if (today_summary and today_summary.status == "SUCCESS") else None,
+        lbs_score=today_summary.lbs_score if today_summary else None,
+        imbalance_risk=today_summary.imbalance_risk if today_summary else None,
         burnout_alert=burnout_alert,
         current_streak=streak,
         balance_ratio=ratio,
-        total_logged_days=total_success,
+        total_logged_days=total_scored,
     )
 
 
@@ -135,11 +131,11 @@ async def get_lbs_trend(
         .order_by(DailySummary.date.asc())
     )
     summaries = result.scalars().all()
-    success_only = [s for s in summaries if s.status == "SUCCESS"]
+    scored_only = [s for s in summaries if s.lbs_score is not None]
 
     return LBSTrendResponse(
         range=range_type,
-        data=[LBSTrendPoint.model_validate(s) for s in success_only],
+        data=[LBSTrendPoint.model_validate(s) for s in scored_only],
     )
 
 
@@ -164,10 +160,10 @@ async def get_streak(
         return StreakResponse()
 
     summary_map = {s.date: s for s in summaries}
-    success_summaries = [s for s in summaries if s.status == "SUCCESS"]
-    total = len(success_summaries)
+    scored_summaries = [s for s in summaries if s.lbs_score is not None]
+    total = len(scored_summaries)
     streak = _compute_streak(summary_map, local_today)
-    balanced = sum(1 for s in success_summaries if _is_balanced(s))
+    balanced = sum(1 for s in scored_summaries if _is_balanced(s))
     ratio = round(balanced / total, 4) if total > 0 else 0.0
 
     return StreakResponse(
