@@ -71,7 +71,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id', 'date', name='uq_daily_summary_user_date')
     )
-    # op.drop_table('items')
+    op.execute('DROP TABLE IF EXISTS items')
     # ### end Alembic commands ###
 
 
