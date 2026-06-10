@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from server.models.log import ActivityLog
 from server.schemas.log import LogCreate, LogUpdate
 from server.services.storage import delete_media
+from server.services import ai as ai_service
 from server.utils.uuid import ensure_uuid
 
 _UTC = ZoneInfo("UTC")
@@ -44,6 +45,18 @@ def _naive_utc(dt: datetime) -> datetime:
     if dt.tzinfo is not None:
         return dt.astimezone(_UTC).replace(tzinfo=None)
     return dt
+
+
+def _stored_utc_to_local_date(dt: datetime, tz: ZoneInfo) -> date:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_UTC)
+    return dt.astimezone(tz).date()
+
+
+def _local_date_from_input(dt: datetime, tz: ZoneInfo) -> date:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=tz)
+    return dt.astimezone(tz).date()
 
 
 def _day_utc_range(d: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
@@ -99,6 +112,13 @@ async def create_log(db: AsyncSession, user_id: UUID, data: LogCreate) -> Activi
     db.add(log)
     await db.commit()
     await db.refresh(log)
+
+    await ai_service.refresh_daily_summary_rule_based(
+        db,
+        ensure_uuid(user_id),
+        _local_date_from_input(data.start_time, tz),
+    )
+
     return log
 
 
@@ -108,9 +128,14 @@ async def update_log(
     user_id: UUID,
     data: LogUpdate,
     background_tasks: BackgroundTasks,
+    timezone: str,
 ) -> ActivityLog:
     log = await _get_owned_log(db, log_id, user_id)
     updated_fields = data.model_fields_set
+
+    effective_tz = _parse_tz(data.timezone or timezone)
+    old_date = _stored_utc_to_local_date(log.logged_at, effective_tz)
+    new_date = old_date
 
     if "media_url" in updated_fields and log.media_url and log.media_url != data.media_url:
         background_tasks.add_task(delete_media, log.media_url)
@@ -119,7 +144,6 @@ async def update_log(
         setattr(log, field, getattr(data, field))
 
     if "start_time" in updated_fields or "end_time" in updated_fields:
-        tz = _parse_tz(data.timezone)  # schema đã validate, _parse_tz là safety net
         has_new_start = "start_time" in updated_fields
         has_new_end = "end_time" in updated_fields
 
@@ -127,19 +151,21 @@ async def update_log(
         existing_end = existing_start + timedelta(hours=log.duration_hours or 0)
 
         if has_new_start and has_new_end:
-            new_start = _to_utc(data.start_time, tz)
-            new_end = _to_utc(data.end_time, tz)
+            new_start = _to_utc(data.start_time, effective_tz)
+            new_end = _to_utc(data.end_time, effective_tz)
             log.logged_at = new_start
             log.duration_hours = round((new_end - new_start).total_seconds() / 3600, 4)
+            new_date = _local_date_from_input(data.start_time, effective_tz)
         elif has_new_start:
-            new_start = _to_utc(data.start_time, tz)
+            new_start = _to_utc(data.start_time, effective_tz)
             new_duration = (existing_end - new_start).total_seconds() / 3600
             if new_duration <= 0:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "new start_time must be before existing end_time")
             log.logged_at = new_start
             log.duration_hours = round(new_duration, 4)
+            new_date = _local_date_from_input(data.start_time, effective_tz)
         else:  # has_new_end only
-            new_end = _to_utc(data.end_time, tz)
+            new_end = _to_utc(data.end_time, effective_tz)
             new_duration = (new_end - existing_start).total_seconds() / 3600
             if new_duration <= 0:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "new end_time must be after existing start_time")
@@ -147,6 +173,11 @@ async def update_log(
 
     await db.commit()
     await db.refresh(log)
+
+    await ai_service.refresh_daily_summary_rule_based(db, user_id, old_date)
+    if new_date != old_date:
+        await ai_service.refresh_daily_summary_rule_based(db, user_id, new_date)
+
     return log
 
 
@@ -155,9 +186,15 @@ async def delete_log(
     log_id: UUID,
     user_id: UUID,
     background_tasks: BackgroundTasks,
+    timezone: str,
 ) -> None:
     log = await _get_owned_log(db, log_id, user_id)
+    local_date = _stored_utc_to_local_date(log.logged_at, _parse_tz(timezone))
+
     if log.media_url:
         background_tasks.add_task(delete_media, log.media_url)
+
     await db.delete(log)
     await db.commit()
+
+    await ai_service.refresh_daily_summary_rule_based(db, user_id, local_date)

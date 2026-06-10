@@ -32,6 +32,28 @@ def _load_prompt(name: str) -> str:
     return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
 
 
+def _strip_code_fence(raw_text: str) -> str:
+    cleaned = raw_text.strip()
+    if "```" not in cleaned:
+        return cleaned
+
+    parts = cleaned.split("```")
+    cleaned = parts[1] if len(parts) >= 2 else cleaned
+    if cleaned.startswith("json"):
+        cleaned = cleaned[4:]
+    return cleaned.strip()
+
+
+def _parse_json_response(raw_text: str | None) -> dict:
+    if not raw_text:
+        return {}
+
+    try:
+        return json.loads(_strip_code_fence(raw_text))
+    except Exception:
+        return {}
+
+
 # --- Gemini Adapter ---
 
 async def _call_gemini_with_handling(client, prompt: str) -> tuple[str | None, str]:
@@ -44,7 +66,6 @@ async def _call_gemini_with_handling(client, prompt: str) -> tuple[str | None, s
             resp = await client.aio.models.generate_content(model=_MODEL, contents=prompt)
             return resp.text, "SUCCESS"
         except APIError as e:
-            # Mã 429 hoặc các lỗi chỉ định kiệt tài nguyên từ Google API
             if e.code == 429:
                 return None, "RATE_LIMIT"
             if attempt == 1:
@@ -67,7 +88,7 @@ async def _get_ewma_state(
             and_(
                 DailySummary.user_id == user_id,
                 DailySummary.date < before_date,
-                DailySummary.status == "SUCCESS",
+                DailySummary.lbs_score.is_not(None),
             )
         )
     )
@@ -79,7 +100,7 @@ async def _get_ewma_state(
             and_(
                 DailySummary.user_id == user_id,
                 DailySummary.date < before_date,
-                DailySummary.status == "SUCCESS",
+                DailySummary.lbs_score.is_not(None),
             )
         )
         .order_by(DailySummary.date.desc())
@@ -121,6 +142,63 @@ async def _get_logs_for_date_batch(
     return result.scalars().all()
 
 
+async def _execute_rule_based_pipeline(
+    db: AsyncSession,
+    user_uuid: UUID,
+    target_date: date,
+    agg,
+    recovery_score: float,
+    summary: DailySummary,
+    ai_summary: str = "Rule-based summary only.",
+    summary_status: str = "INIT",
+) -> DailySummary:
+    return await _execute_pure_math_pipeline(
+        db=db,
+        user_uuid=user_uuid,
+        target_date=target_date,
+        agg=agg,
+        recovery_score=recovery_score,
+        ai_summary=ai_summary,
+        summary=summary,
+        summary_status=summary_status,
+    )
+
+
+async def refresh_daily_summary_rule_based(
+    db: AsyncSession,
+    user_uuid: UUID,
+    target_date: date,
+) -> DailySummary | None:
+    logs = await _get_logs_for_date_batch(db, user_uuid, target_date)
+    summary = await get_daily_summary(db, user_uuid, target_date)
+
+    if not logs:
+        if summary is not None:
+            await db.delete(summary)
+            await db.commit()
+        return None
+
+    agg = lbs_service.aggregate_logs(logs)
+
+    if summary is None:
+        summary = DailySummary(user_id=user_uuid, date=target_date, status="INIT")
+        db.add(summary)
+        await db.commit()
+    else:
+        summary.status = "INIT"
+
+    return await _execute_rule_based_pipeline(
+        db=db,
+        user_uuid=user_uuid,
+        target_date=target_date,
+        agg=agg,
+        recovery_score=lbs_service.DEFAULT_RECOVERY,
+        summary=summary,
+        ai_summary="Rule-based summary only.",
+        summary_status="INIT",
+    )
+
+
 # --- Main Pipeline & State Machine ---
 
 async def analyze_day(
@@ -142,48 +220,76 @@ async def analyze_day(
         prelim = lbs_service.compute_scores(agg, lbs_service.DEFAULT_RECOVERY)
         prelim_lbs = lbs_service.compute_lbs(prelim)
 
-        if not agg.notes.strip():
-            return await _execute_pure_math_pipeline(db, user_uuid, target_date, agg, lbs_service.DEFAULT_RECOVERY, "Hệ thống ghi nhận dữ liệu hoạt động chuẩn hóa (Không có ghi chú bổ sung).", summary)
-
-        base_prompt = _load_prompt("daily_summary.txt")
-        user_data = (
-            f"\n\n---\nDỮ LIỆU HOẠT ĐỘNG HÔM NAY:\n"
-            f"- Làm việc: {round(agg.work_h, 2)} giờ\n"
-            f"- Ngủ: {round(agg.sleep_h, 2)} giờ\n"
-            f"- Giao tiếp xã hội: {round(agg.social_h, 2)} giờ\n"
-            f"- Vận động: {round(agg.exercise_mpa_h + agg.exercise_vpa_h, 2)} giờ\n"
-            f"- Điểm LBS sơ bộ: {prelim_lbs:.1f}\n\n"
-            f"GHI CHÚ NGƯỜI DÙNG:\n{agg.notes}\n"
+        base_summary = (
+            "Hệ thống ghi nhận dữ liệu hoạt động chuẩn hóa (Không có ghi chú bổ sung)."
+            if not agg.notes.strip()
+            else "Hoàn thành phân tích chỉ số hồi phục."
         )
 
-        raw_response, status_code = await _call_gemini_with_handling(gemini, base_prompt + user_data)
+        recovery_score = lbs_service.DEFAULT_RECOVERY
+        ai_summary = base_summary
+        final_status = "SUCCESS"
 
-        if status_code == "RATE_LIMIT":
-            summary.status = "QUEUE_SLEEP_HOURS"
-            summary.ai_summary = "Yêu cầu đang được xếp hàng chờ xử lý tự động vào khung giờ thấp điểm (đêm nay). Trạng thái hiển thị sẽ tự động cập nhật sau."
-            await db.commit()
-            return summary
+        if agg.notes.strip():
+            base_prompt = _load_prompt("daily_summary.txt")
+            user_data = (
+                f"\n\n---\nDỮ LIỆU HOẠT ĐỘNG HÔM NAY:\n"
+                f"- Làm việc: {round(agg.work_h, 2)} giờ\n"
+                f"- Ngủ: {round(agg.sleep_h, 2)} giờ\n"
+                f"- Giao tiếp xã hội: {round(agg.social_h, 2)} giờ\n"
+                f"- Vận động: {round(agg.exercise_mpa_h + agg.exercise_vpa_h, 2)} giờ\n"
+                f"- Điểm LBS sơ bộ: {prelim_lbs:.1f}\n\n"
+                f"GHI CHÚ NGƯỜI DÙNG:\n{agg.notes}\n"
+            )
 
-        if status_code == "API_ERROR" or not raw_response:
-            summary.status = "FAILED"
-            summary.ai_summary = "Hệ thống AI gặp sự cố kết nối vật lý. Tiến trình lưu trữ an toàn. Vui lòng bấm thử lại."
-            await db.commit()
-            return summary
+            raw_response, status_code = await _call_gemini_with_handling(gemini, base_prompt + user_data)
 
-        raw_response = raw_response.strip()
-        if "```" in raw_response:
-            parts = raw_response.split("```")
-            raw_response = parts[1] if len(parts) >= 2 else raw_response
-            if raw_response.startswith("json"):
-                raw_response = raw_response[4:]
-        
-        data = json.loads(raw_response.strip())
-        r = data.get("recovery_score", {})
-        x_r = float(r.get("psychological_detachment", 12)) + float(r.get("relaxation", 12)) + float(r.get("mastery", 13)) + float(r.get("control", 13))
-        x_r = min(100.0, max(0.0, x_r))
-        ai_summary = data.get("summary") or "Hoàn thành phân tích chỉ số hồi phục."
-        
-        return await _execute_pure_math_pipeline(db, user_uuid, target_date, agg, x_r, ai_summary, summary)
+            if status_code == "SUCCESS" and raw_response:
+                parsed = _parse_json_response(raw_response)
+                if parsed:
+                    r = parsed.get("recovery_score", {})
+                    try:
+                        recovery_score = (
+                            float(r.get("psychological_detachment", 12))
+                            + float(r.get("relaxation", 12))
+                            + float(r.get("mastery", 13))
+                            + float(r.get("control", 13))
+                        )
+                    except Exception:
+                        recovery_score = lbs_service.DEFAULT_RECOVERY
+                    recovery_score = min(100.0, max(0.0, recovery_score))
+                    ai_summary = parsed.get("summary") or base_summary
+                else:
+                    final_status = "FAILED"
+                    ai_summary = (
+                        "Hệ thống AI trả về dữ liệu không hợp lệ. "
+                        "Tiến trình lưu trữ an toàn. Vui lòng bấm thử lại."
+                    )
+                    recovery_score = lbs_service.DEFAULT_RECOVERY
+            elif status_code == "RATE_LIMIT":
+                final_status = "QUEUE_SLEEP_HOURS"
+                ai_summary = (
+                    "Yêu cầu đang được xếp hàng chờ xử lý tự động vào khung giờ thấp điểm "
+                    "(đêm nay). Trạng thái hiển thị sẽ tự động cập nhật sau."
+                )
+            else:
+                final_status = "FAILED"
+                ai_summary = (
+                    "Hệ thống AI gặp sự cố kết nối vật lý. Tiến trình lưu trữ an toàn. "
+                    "Vui lòng bấm thử lại."
+                )
+
+        return await _execute_pure_math_pipeline(
+            db,
+            user_uuid,
+            target_date,
+            agg,
+            recovery_score,
+            ai_summary,
+            summary,
+            summary_status=final_status,
+        )
+
     except Exception as e:
         summary.status = "FAILED"
         summary.ai_summary = f"Hệ thống gặp sự cố xử lý nội bộ: {str(e)}. Tiến trình được bảo lưu an toàn."
@@ -192,7 +298,14 @@ async def analyze_day(
 
 
 async def _execute_pure_math_pipeline(
-    db: AsyncSession, user_uuid: UUID, target_date: date, agg, recovery_score: float, ai_summary: str, summary: DailySummary
+    db: AsyncSession,
+    user_uuid: UUID,
+    target_date: date,
+    agg,
+    recovery_score: float,
+    ai_summary: str,
+    summary: DailySummary,
+    summary_status: str = "SUCCESS",
 ) -> DailySummary:
     scores = lbs_service.compute_scores(agg, recovery_score)
     lbs_score = lbs_service.compute_lbs(scores)
@@ -212,7 +325,7 @@ async def _execute_pure_math_pipeline(
     summary.ai_summary = ai_summary
     summary.acute_workload = ewma.raw_aw
     summary.chronic_workload = ewma.raw_cw
-    summary.status = "SUCCESS"
+    summary.status = summary_status
 
     await db.commit()
     await db.refresh(summary)
@@ -237,69 +350,96 @@ async def process_midnight_batch(db: AsyncSession, gemini_client) -> None:
     if not queued_summaries:
         return
 
-    # Gom nhóm theo từng user_id để bảo mật dữ liệu chéo
-    user_buckets = {}
+    user_buckets: dict[UUID, list[DailySummary]] = {}
     for s in queued_summaries:
         user_buckets.setdefault(s.user_id, []).append(s)
 
     for user_id, summaries in user_buckets.items():
-        # Xây dựng Batch Prompt nén dữ liệu
         batch_prompt = _load_prompt("batch_sleep_summary.txt")
         bulk_data = []
         agg_cache: dict[str, lbs_service.DayAggregate] = {}
-        
+
         for s in summaries:
             day_logs = await _get_logs_for_date_batch(db, user_id, s.date)
             agg = lbs_service.aggregate_logs(day_logs)
             agg_cache[str(s.date)] = agg
-            bulk_data.append({
-                "date": str(s.date),
-                "work_h": agg.work_h,
-                "sleep_h": agg.sleep_h,
-                "social_h": agg.social_h,
-                "exercise_h": agg.exercise_mpa_h + agg.exercise_vpa_h,
-                "notes": agg.notes
-            })
+            bulk_data.append(
+                {
+                    "date": str(s.date),
+                    "work_h": agg.work_h,
+                    "sleep_h": agg.sleep_h,
+                    "social_h": agg.social_h,
+                    "exercise_h": agg.exercise_mpa_h + agg.exercise_vpa_h,
+                    "notes": agg.notes,
+                }
+            )
 
         full_payload = batch_prompt + f"\n\nDATA_BATCH:\n{json.dumps(bulk_data, ensure_ascii=False)}"
 
         try:
-            # Chạy nén dữ liệu bằng 1 request duy nhất cho toàn bộ chuỗi ngày bị dồn ứ
             raw_resp, status = await _call_gemini_with_handling(gemini_client, full_payload)
-            if status != "SUCCESS" or not raw_resp:
-                continue
-                
-            if "```" in raw_resp:
-                raw_resp = raw_resp.split("```")[1]
-                if raw_resp.startswith("json"):
-                    raw_resp = raw_resp[4:]
+            results_dict: dict[str, dict] = {}
 
-            results_dict = json.loads(raw_resp.strip())
-            
+            if status == "SUCCESS" and raw_resp:
+                results_dict = _parse_json_response(raw_resp)
+
             for s in summaries:
                 date_str = str(s.date)
-                if date_str in results_dict:
-                    day_res = results_dict[date_str]
+                agg = agg_cache.get(date_str)
+                if agg is None:
+                    continue
+
+                day_res = results_dict.get(date_str)
+
+                if day_res:
                     r = day_res.get("recovery_score", {})
-                    x_r = float(r.get("psychological_detachment", 12)) + float(r.get("relaxation", 12)) + float(r.get("mastery", 13)) + float(r.get("control", 13))
-                    x_r = min(100.0, max(0.0, x_r))
+                    try:
+                        recovery_score = (
+                            float(r.get("psychological_detachment", 12))
+                            + float(r.get("relaxation", 12))
+                            + float(r.get("mastery", 13))
+                            + float(r.get("control", 13))
+                        )
+                    except Exception:
+                        recovery_score = lbs_service.DEFAULT_RECOVERY
+
+                    recovery_score = min(100.0, max(0.0, recovery_score))
                     ai_summary = day_res.get("summary") or "Phân tích hoàn thiện trong chu kỳ nén dữ liệu đêm."
-                    
-                    agg = agg_cache.get(date_str)
-                    if agg is None:
-                        continue
-                    await _execute_pure_math_pipeline(db, user_id, s.date, agg, x_r, ai_summary, s)
+                    summary_status = "SUCCESS"
+                else:
+                    recovery_score = lbs_service.DEFAULT_RECOVERY
+                    ai_summary = "Phân tích hoàn thiện trong chu kỳ nén dữ liệu đêm."
+                    summary_status = "QUEUE_SLEEP_HOURS"
+
+                await _execute_pure_math_pipeline(
+                    db,
+                    user_id,
+                    s.date,
+                    agg,
+                    recovery_score,
+                    ai_summary,
+                    s,
+                    summary_status=summary_status,
+                )
+
         except Exception as e:
             logger.error(f"Batch processing failed for user {user_id}: {str(e)}")
             continue
 
 
 # --- Pattern Insight ---
+
 async def generate_pattern_insight(db: AsyncSession, user_uuid: UUID, days: int, gemini) -> AIInsight:
     cutoff = date.today() - timedelta(days=days)
     result = await db.execute(
         select(DailySummary)
-        .where(and_(DailySummary.user_id == user_uuid, DailySummary.date >= cutoff, DailySummary.status == "SUCCESS"))
+        .where(
+            and_(
+                DailySummary.user_id == user_uuid,
+                DailySummary.date >= cutoff,
+                DailySummary.lbs_score.is_not(None),
+            )
+        )
         .order_by(DailySummary.date.asc())
     )
     summaries = result.scalars().all()
@@ -311,19 +451,19 @@ async def generate_pattern_insight(db: AsyncSession, user_uuid: UUID, days: int,
         data_str = json.dumps(
             [
                 {
-                    "date": str(s.date), 
-                    "lbs_score": s.lbs_score, 
-                    "work_score": s.work_score, 
-                    "sleep_score": s.sleep_score, 
-                    "exercise_score": s.exercise_score, 
-                    "social_score": s.social_score, 
-                    "recovery_score": s.recovery_score, 
-                    "imbalance_risk": s.imbalance_risk, 
-                    "summary": s.ai_summary
-                } 
+                    "date": str(s.date),
+                    "lbs_score": s.lbs_score,
+                    "work_score": s.work_score,
+                    "sleep_score": s.sleep_score,
+                    "exercise_score": s.exercise_score,
+                    "social_score": s.social_score,
+                    "recovery_score": s.recovery_score,
+                    "imbalance_risk": s.imbalance_risk,
+                    "summary": s.ai_summary,
+                }
                 for s in summaries
-            ], 
-            ensure_ascii=False
+            ],
+            ensure_ascii=False,
         )
         user_data = f"\n\n---\nDỮ LIỆU {days} NGÀY GẦN NHẤT:\n{data_str}\n"
         try:

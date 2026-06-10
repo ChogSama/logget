@@ -25,9 +25,9 @@ async def _run_analysis_safe(
         logs = await log_service.get_logs_by_date(db, user_uuid, str(target_date), timezone)
         return await ai_service.analyze_day(db, user_uuid, target_date, logs, gemini, summary)
     except HTTPException:
-        raise  # Propagate 422/403/404 — không nuốt bởi broad except bên dưới
+        raise
     except Exception as e:
-        await db.rollback()  # Rollback trước commit FAILED tránh InvalidRequestError
+        await db.rollback()
         summary.status = "FAILED"
         summary.ai_summary = f"Hệ thống gặp sự cố ngoại lệ tầng Router: {str(e)}"
         await db.commit()
@@ -44,15 +44,14 @@ async def get_daily_insight(
 ):
     user_uuid = ensure_uuid(current_user_id)
     target_date = date_type.fromisoformat(date)
-    summary = await ai_service.get_daily_summary(db, user_uuid, target_date)
 
+    summary = await ai_service.get_daily_summary(db, user_uuid, target_date)
     if summary:
-        if summary.status == "SUCCESS":
-            return summary
-        if summary.status == "PROCESSING":
-            raise HTTPException(status_code=status.HTTP_425_TOO_EARLY, detail="Analysis in progress")
-        if summary.status in ["FAILED", "QUEUE_SLEEP_HOURS"]:
-            return summary
+        return summary
+
+    summary = await ai_service.refresh_daily_summary_rule_based(db, user_uuid, target_date)
+    if summary:
+        return summary
 
     summary = DailySummary(user_id=user_uuid, date=target_date, status="INIT")
     db.add(summary)
@@ -61,11 +60,10 @@ async def get_daily_insight(
     except IntegrityError:
         await db.rollback()
         summary = await ai_service.get_daily_summary(db, user_uuid, target_date)
-        if summary and summary.status == "PROCESSING":
-            raise HTTPException(status_code=status.HTTP_425_TOO_EARLY, detail="Analysis in progress")
-        return summary
-
-    return await _run_analysis_safe(db, user_uuid, target_date, timezone, request.app.state.gemini, summary)
+        if summary:
+            return summary
+        raise
+    return summary
 
 
 @router.post("/analyze", response_model=DailyInsightResponse, status_code=status.HTTP_200_OK)
@@ -76,7 +74,7 @@ async def force_analyze(
     current_user_id: any = Depends(get_current_user),
 ):
     user_uuid = ensure_uuid(current_user_id)
-    target_date = body.date  # date object — Pydantic đã validate, không cần fromisoformat
+    target_date = body.date
 
     summary = await ai_service.get_daily_summary(db, user_uuid, target_date)
     if summary:
