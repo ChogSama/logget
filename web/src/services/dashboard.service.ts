@@ -17,7 +17,7 @@ export const dashboardService = {
     return data;
   },
 
-  getLBSTrend: async (range?: "7d" | "30d", timezone?: string): Promise<LBSTrendResponse> => {
+  getLBSTrend: async (range?: "week" | "month", timezone?: string): Promise<LBSTrendResponse> => {
     const { data } = await apiClient.get<LBSTrendResponse>("/dashboard/lbs", {
       params: {
         ...(range && { range }),

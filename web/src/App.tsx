@@ -1,17 +1,18 @@
-import { Toaster } from "@/components/ui/toaster"
-import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import PageNotFound from './lib/PageNotFound';
-import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { QueryClientProvider } from '@tanstack/react-query'
+
+import { queryClientInstance } from '@/services/query-client'
+import { AuthProvider, useAuth } from '@/context/AuthContext';
+
 import ScrollToTop from './components/ScrollToTop';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import { Toaster } from "@/components/ui/toaster"
+import PageNotFound from './components/PageNotFound';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+
 import Login from '@/screens/Login';
 import Register from '@/screens/Register';
 import ForgotPassword from '@/screens/ForgotPassword';
 import ResetPassword from '@/screens/ResetPassword';
-import { Navigate } from 'react-router-dom';
 import Home from '@/screens/Home';
 
 const AuthenticatedApp = () => {

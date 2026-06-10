@@ -127,7 +127,7 @@ export interface LBSTrendPoint {
 }
 
 export interface LBSTrendResponse {
-  range: string;
+  range: "week" | "month";
   data: LBSTrendPoint[];
 }
 

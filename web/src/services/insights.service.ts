@@ -24,7 +24,7 @@ export const insightsService = {
     return data;
   },
 
-  getPatterns: async (range?: "7d" | "30d"): Promise<AIInsightResponse> => {
+  getPatterns: async (range?: "week" | "month"): Promise<AIInsightResponse> => {
     const { data } = await apiClient.get<AIInsightResponse>("/insights/patterns", {
       params: { ...(range && { range }) },
     });
