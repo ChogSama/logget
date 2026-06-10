@@ -33,12 +33,16 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    # Tự động khởi tạo TYPE ENUM nếu chưa tồn tại trong PostgreSQL hệ thống
     connection.execute(text("""
         DO $$
         BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'intensity_type_enum') THEN
-                CREATE TYPE intensity_type_enum AS ENUM ('moderate', 'vigorous');
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_type
+                WHERE typname = 'intensity_type_enum'
+            ) THEN
+                CREATE TYPE intensity_type_enum
+                AS ENUM ('moderate', 'vigorous');
             END IF;
         END
         $$;
@@ -55,8 +59,10 @@ async def run_async_migrations() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-    async with connectable.connect() as connection:
+    
+    async with connectable.begin() as connection:
         await connection.run_sync(do_run_migrations)
+        
     await connectable.dispose()
 
 

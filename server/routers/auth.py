@@ -115,11 +115,12 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
                 status.HTTP_409_CONFLICT, 
                 detail="Account processing conflict, please try again."
             )
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         await db.rollback()
+
         raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail="Database operation failed"
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error",
         )
         
     oauth_code = auth_service.create_oauth_code(str(user.id))

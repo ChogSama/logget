@@ -44,17 +44,32 @@ async def update_log(
     log_id: UUID,
     data: LogUpdate,
     background_tasks: BackgroundTasks,
+    timezone: str = Query(default="Asia/Ho_Chi_Minh"),
     db: AsyncSession = Depends(get_db),
     current_user_id: any = Depends(get_current_user),
 ):
-    return await log_service.update_log(db, log_id, ensure_uuid(current_user_id), data, background_tasks)
+    return await log_service.update_log(
+        db,
+        log_id,
+        ensure_uuid(current_user_id),
+        data,
+        background_tasks,
+        timezone,
+    )
 
 
 @router.delete("/{log_id}", status_code=204)
 async def delete_log(
     log_id: UUID,
     background_tasks: BackgroundTasks,
+    timezone: str = Query(default="Asia/Ho_Chi_Minh"),
     db: AsyncSession = Depends(get_db),
     current_user_id: any = Depends(get_current_user),
 ):
-    await log_service.delete_log(db, log_id, ensure_uuid(current_user_id), background_tasks)
+    await log_service.delete_log(
+        db,
+        log_id,
+        ensure_uuid(current_user_id),
+        background_tasks,
+        timezone,
+    )
