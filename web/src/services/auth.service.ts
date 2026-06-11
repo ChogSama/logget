@@ -25,7 +25,7 @@ export const authService = {
     return data;
   },
 
-  redirectToGoogle: () => {
+  redirectToGoogle: (): void => {
     window.location.href = "/api/auth/google";
   },
 
@@ -50,7 +50,7 @@ export const authService = {
     return Promise.resolve();
   },
 
-  logout: () => {
+  logout: (): void => {
     tokenStorage.clear();
     window.dispatchEvent(new Event("auth:logout"));
   },
