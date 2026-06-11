@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { axiosClient as base44 } from "@/services/axiosClient";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { authService } from "@/services/auth.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import AuthLayout from "@/components/AuthLayout";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const resetToken = searchParams.get("token");
 
   const [newPassword, setNewPassword] = useState("");
@@ -25,10 +26,10 @@ export default function ResetPassword() {
     }
     setLoading(true);
     try {
-      await base44.auth.resetPassword({ resetToken, newPassword });
-      window.location.href = "/login";
+      await authService.resetPassword(resetToken, newPassword);
+      navigate("/login", { replace: true });
     } catch (err) {
-      setError(err.message || "Failed to reset password");
+      setError(err.response?.data?.detail || "Failed to reset password");
     } finally {
       setLoading(false);
     }
@@ -99,14 +100,7 @@ export default function ResetPassword() {
           </div>
         </div>
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Resetting...
-            </>
-          ) : (
-            "Reset password"
-          )}
+          {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Resetting...</> : "Reset password"}
         </Button>
       </form>
     </AuthLayout>

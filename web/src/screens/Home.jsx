@@ -1,33 +1,56 @@
+/**
+ * @file Home.jsx
+ * @description Shell của toàn bộ ứng dụng chính sau khi đăng nhập.
+ * Quản lý tab navigation và fetch dữ liệu từ real API.
+ *
+ * Data flow:
+ *   logs        → logsService.getLogs(selectedDateStr, timezone)   → LogTab
+ *   overview    → dashboardService.getOverview(timezone)            → HomeTab
+ *   insight     → insightsService.getDaily(selectedDateStr, tz)     → HealthTab
+ *
+ * NOTE: HomeTab, HealthTab, và LogTab (log management) cần cập nhật prop names
+ * từ VlogEntry/DailyHealth mock shape sang LogResponse/OverviewResponse/DailyInsightResponse.
+ * Search tags: logsService | dashboardService | insightsService | selectedDate | timezone
+ */
+
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { axiosClient as base44 } from "@/services/axiosClient";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
+
+import { logsService } from "@/services/logs.service";
+import { dashboardService } from "@/services/dashboard.service";
+import { insightsService } from "@/services/insights.service";
+
 import BottomNav from "@/components/logget/BottomNav";
 import CameraScreen from "@/components/logget/CameraScreen";
 import LogTab from "@/screens/LogTab";
 import HealthTab from "@/screens/HealthTab";
 import HomeTab from "@/screens/HomeTab";
 
+const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState("home");
   const [showCamera, setShowCamera] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const { data: vlogEntries = [] } = useQuery({
-    queryKey: ["vlogs"],
-    queryFn: () => base44.entities.VlogEntry.list("-created_date", 200),
-  });
-
-  const { data: healthEntries = [] } = useQuery({
-    queryKey: ["health"],
-    queryFn: () => base44.entities.DailyHealth.list("-created_date", 200),
-  });
-
-  const todayStr = format(new Date(), "yyyy-MM-dd");
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
-  const healthData = healthEntries.find((h) => h.date === selectedDateStr);
-  const todayHealthData = healthEntries.find((h) => h.date === todayStr);
+
+  const { data: logs = [] } = useQuery({
+    queryKey: ["logs", selectedDateStr, timezone],
+    queryFn: () => logsService.getLogs(selectedDateStr, timezone),
+  });
+
+  const { data: overview } = useQuery({
+    queryKey: ["overview", timezone],
+    queryFn: () => dashboardService.getOverview(timezone),
+  });
+
+  const { data: insight } = useQuery({
+    queryKey: ["insight", selectedDateStr, timezone],
+    queryFn: () => insightsService.getDaily(selectedDateStr, timezone),
+  });
 
   const handleTabChange = (tab) => {
     if (tab === "camera") {
@@ -39,9 +62,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-neutral-200 flex items-center justify-center p-4">
-      {/* Phone mockup */}
       <div className="max-w-[400px] w-full h-[850px] mx-auto bg-white relative overflow-hidden rounded-[40px] border-[8px] border-black shadow-2xl flex flex-col">
-        {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
           <AnimatePresence mode="wait">
             {activeTab === "home" && (
@@ -54,8 +75,8 @@ export default function Home() {
                 className="min-h-full"
               >
                 <HomeTab
-                  vlogEntries={vlogEntries}
-                  healthData={todayHealthData}
+                  logs={logs}
+                  overview={overview}
                   onOpenCamera={() => setShowCamera(true)}
                 />
               </motion.div>
@@ -73,7 +94,7 @@ export default function Home() {
                 <LogTab
                   selectedDate={selectedDate}
                   setSelectedDate={setSelectedDate}
-                  vlogEntries={vlogEntries}
+                  logs={logs}
                 />
               </motion.div>
             )}
@@ -89,17 +110,15 @@ export default function Home() {
               >
                 <HealthTab
                   selectedDate={selectedDate}
-                  healthData={healthData}
+                  insight={insight}
                 />
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Bottom Navigation — sits inside the phone */}
         <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
 
-        {/* Camera Overlay — fills the phone */}
         <AnimatePresence>
           {showCamera && (
             <CameraScreen onClose={() => setShowCamera(false)} />
