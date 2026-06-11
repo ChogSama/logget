@@ -31,7 +31,7 @@ export default function AuthCallback() {
       .then(() => checkUserAuth())
       .then(() => navigate('/', { replace: true }))
       .catch(() => navigate('/login', { replace: true }));
-  }, []);
+  }, [checkUserAuth, navigate, searchParams]);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center">
