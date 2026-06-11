@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { axiosClient as base44 } from "@/services/axiosClient";
+import { Link, useNavigate } from "react-router-dom";
+import { authService } from "@/services/auth.service";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,8 @@ import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { checkUserAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,17 +22,14 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await base44.auth.loginViaEmailPassword(email, password);
-      window.location.href = "/";
+      await authService.login({ email, password });
+      await checkUserAuth();
+      navigate("/", { replace: true });
     } catch (err) {
-      setError(err.message || "Invalid email or password");
+      setError(err.response?.data?.detail || "Invalid email or password");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", "/");
   };
 
   return (
@@ -49,7 +49,7 @@ export default function Login() {
       <Button
         variant="outline"
         className="w-full h-12 text-sm font-medium mb-6"
-        onClick={handleGoogle}
+        onClick={() => authService.redirectToGoogle()}
       >
         <GoogleIcon className="w-5 h-5 mr-2" />
         Continue with Google
@@ -110,14 +110,7 @@ export default function Login() {
           </div>
         </div>
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Logging in...
-            </>
-          ) : (
-            "Log in"
-          )}
+          {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Logging in...</> : "Log in"}
         </Button>
       </form>
     </AuthLayout>

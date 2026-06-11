@@ -3,7 +3,10 @@
  * @description API calls for authentication endpoints.
  * Google OAuth flow: initiate via redirectToGoogle() → backend redirects back
  * to /auth/callback?code=... → call exchangeGoogleCode(code) to get JWT tokens.
- * Search tags: register | login | refresh | Google OAuth | me
+ *
+ * forgotPassword / resetPassword: STUB — backend endpoints not yet implemented.
+ * Remove stub comment and wire real endpoint when backend adds them.
+ * Search tags: register | login | refresh | Google OAuth | me | forgotPassword | resetPassword
  */
 
 import apiClient, { tokenStorage } from "./axiosClient";
@@ -22,12 +25,10 @@ export const authService = {
     return data;
   },
 
-  // Redirect browser to Google login page (no fetch — full redirect)
   redirectToGoogle: () => {
     window.location.href = "/api/auth/google";
   },
 
-  // Called after Google redirects back to /auth/callback?code=...
   exchangeGoogleCode: async (code: string): Promise<TokenResponse> => {
     const { data } = await apiClient.post<TokenResponse>("/auth/google/token", { code });
     tokenStorage.set(data.access_token, data.refresh_token);
@@ -37,6 +38,16 @@ export const authService = {
   me: async (): Promise<UserResponse> => {
     const { data } = await apiClient.get<UserResponse>("/auth/me");
     return data;
+  },
+
+  // STUB: POST /auth/forgot-password not yet in backend
+  forgotPassword: async (_email: string): Promise<void> => {
+    return Promise.resolve();
+  },
+
+  // STUB: POST /auth/reset-password not yet in backend
+  resetPassword: async (_token: string, _newPassword: string): Promise<void> => {
+    return Promise.resolve();
   },
 
   logout: () => {
