@@ -43,14 +43,14 @@ export const tokenStorage = {
 
 // --- Axios instance ---
 
-const apiClient = axios.create({
+const axiosClient = axios.create({
   baseURL: "/api",
   headers: { "Content-Type": "application/json" },
 });
 
 // --- Request interceptor: attach Bearer token ---
 
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+axiosClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = tokenStorage.getAccess();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -86,7 +86,7 @@ const refreshTokens = async (): Promise<string> => {
   return data.access_token;
 };
 
-apiClient.interceptors.response.use(
+axiosClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const original = error.config as AxiosRequestConfig & { _retry?: boolean };
@@ -108,7 +108,7 @@ apiClient.interceptors.response.use(
           resolve: (token) => {
             original._retry = true;
             original.headers = { ...original.headers, Authorization: `Bearer ${token}` };
-            resolve(apiClient(original));
+            resolve(axiosClient(original));
           },
           reject,
         });
@@ -122,7 +122,7 @@ apiClient.interceptors.response.use(
       const newToken = await refreshTokens();
       flushQueue(newToken);
       original.headers = { ...original.headers, Authorization: `Bearer ${newToken}` };
-      return apiClient(original);
+      return axiosClient(original);
     } catch (refreshError) {
       rejectQueue(refreshError);
       tokenStorage.clear();
@@ -134,4 +134,4 @@ apiClient.interceptors.response.use(
   }
 );
 
-export default apiClient;
+export default axiosClient;

@@ -12,7 +12,8 @@ import axios from 'axios';
 import { tokenStorage } from '@/services/axiosClient';
 import { authService } from '@/services/auth.service';
 import { AuthContext } from '@/hooks/useAuth';
-import type { UserResponse, AuthError } from '@/hooks/useAuth';
+import type { AuthError } from '@/hooks/useAuth';
+import type { UserResponse } from '@/services/types';
 
 interface AuthProviderProps {
   children: ReactNode;

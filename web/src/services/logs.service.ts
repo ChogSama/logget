@@ -11,33 +11,33 @@
  * Search tags: getLogs | createLog | updateLog | deleteLog | getUploadSign | Cloudinary
  */
 
-import apiClient from "./axiosClient";
+import axiosClient from "./axiosClient";
 import type { LogCreate, LogUpdate, LogResponse, CloudinaryUploadSign } from "./types";
 
 export const logsService = {
   getUploadSign: async (): Promise<CloudinaryUploadSign> => {
-    const { data } = await apiClient.get<CloudinaryUploadSign>("/logs/upload-sign");
+    const { data } = await axiosClient.get<CloudinaryUploadSign>("/logs/upload-sign");
     return data;
   },
 
   getLogs: async (date: string, timezone?: string): Promise<LogResponse[]> => {
-    const { data } = await apiClient.get<LogResponse[]>("/logs", {
+    const { data } = await axiosClient.get<LogResponse[]>("/logs", {
       params: { date, ...(timezone && { timezone }) },
     });
     return data;
   },
 
   createLog: async (payload: LogCreate): Promise<LogResponse> => {
-    const { data } = await apiClient.post<LogResponse>("/logs", payload);
+    const { data } = await axiosClient.post<LogResponse>("/logs", payload);
     return data;
   },
 
   updateLog: async (logId: string, payload: LogUpdate): Promise<LogResponse> => {
-    const { data } = await apiClient.patch<LogResponse>(`/logs/${logId}`, payload);
+    const { data } = await axiosClient.patch<LogResponse>(`/logs/${logId}`, payload);
     return data;
   },
 
   deleteLog: async (logId: string): Promise<void> => {
-    await apiClient.delete(`/logs/${logId}`);
+    await axiosClient.delete(`/logs/${logId}`);
   },
 };

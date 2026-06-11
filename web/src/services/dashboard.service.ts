@@ -6,19 +6,19 @@
  * Search tags: getOverview | getLBSTrend | getStreak | OverviewResponse | LBSTrendResponse
  */
 
-import apiClient from "./axiosClient";
+import axiosClient from "./axiosClient";
 import type { OverviewResponse, LBSTrendResponse, StreakResponse } from "./types";
 
 export const dashboardService = {
   getOverview: async (timezone?: string): Promise<OverviewResponse> => {
-    const { data } = await apiClient.get<OverviewResponse>("/dashboard/overview", {
+    const { data } = await axiosClient.get<OverviewResponse>("/dashboard/overview", {
       params: { ...(timezone && { timezone }) },
     });
     return data;
   },
 
   getLBSTrend: async (range?: "week" | "month", timezone?: string): Promise<LBSTrendResponse> => {
-    const { data } = await apiClient.get<LBSTrendResponse>("/dashboard/lbs", {
+    const { data } = await axiosClient.get<LBSTrendResponse>("/dashboard/lbs", {
       params: {
         ...(range && { range }),
         ...(timezone && { timezone }),
@@ -28,7 +28,7 @@ export const dashboardService = {
   },
 
   getStreak: async (timezone?: string): Promise<StreakResponse> => {
-    const { data } = await apiClient.get<StreakResponse>("/dashboard/streak", {
+    const { data } = await axiosClient.get<StreakResponse>("/dashboard/streak", {
       params: { ...(timezone && { timezone }) },
     });
     return data;

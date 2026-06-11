@@ -9,18 +9,18 @@
  * Search tags: register | login | refresh | Google OAuth | me | forgotPassword | resetPassword
  */
 
-import apiClient, { tokenStorage } from "./axiosClient";
+import axiosClient, { tokenStorage } from "./axiosClient";
 import type { UserCreate, UserLogin, TokenResponse, UserResponse } from "./types";
 
 export const authService = {
   register: async (payload: UserCreate): Promise<TokenResponse> => {
-    const { data } = await apiClient.post<TokenResponse>("/auth/register", payload);
+    const { data } = await axiosClient.post<TokenResponse>("/auth/register", payload);
     tokenStorage.set(data.access_token, data.refresh_token);
     return data;
   },
 
   login: async (payload: UserLogin): Promise<TokenResponse> => {
-    const { data } = await apiClient.post<TokenResponse>("/auth/login", payload);
+    const { data } = await axiosClient.post<TokenResponse>("/auth/login", payload);
     tokenStorage.set(data.access_token, data.refresh_token);
     return data;
   },
@@ -30,13 +30,13 @@ export const authService = {
   },
 
   exchangeGoogleCode: async (code: string): Promise<TokenResponse> => {
-    const { data } = await apiClient.post<TokenResponse>("/auth/google/token", { code });
+    const { data } = await axiosClient.post<TokenResponse>("/auth/google/token", { code });
     tokenStorage.set(data.access_token, data.refresh_token);
     return data;
   },
 
   me: async (): Promise<UserResponse> => {
-    const { data } = await apiClient.get<UserResponse>("/auth/me");
+    const { data } = await axiosClient.get<UserResponse>("/auth/me");
     return data;
   },
 

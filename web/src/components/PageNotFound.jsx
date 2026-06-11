@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { axiosClient as base44 } from "@/services/axiosClient";
+import axiosClient from "@/services/axiosClient";
 import { useQuery } from '@tanstack/react-query';
 
 export default function PageNotFound() {
@@ -10,7 +10,7 @@ export default function PageNotFound() {
         queryKey: ['user'],
         queryFn: async () => {
             try {
-                const user = await base44.auth.me();
+                const user = await axiosClient.get("/auth/me");
                 return { user, isAuthenticated: true };
             } catch {
                 return { user: null, isAuthenticated: false };

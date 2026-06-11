@@ -3,14 +3,14 @@ import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { Video, Target, ChevronRight } from "lucide-react";
 
-export default function HomeTab({ vlogEntries, healthData, onOpenCamera }) {
+export default function HomeTab({ logs = [], overview, onOpenCamera }) {
   const todayStr = format(new Date(), "yyyy-MM-dd");
-  const todayClips = vlogEntries.filter((e) => e.date === todayStr);
+  const todayClips = (logs || []).filter((e) => e.date === todayStr);
   const totalClipsNeeded = 5;
   const clipsRemaining = Math.max(0, totalClipsNeeded - todayClips.length);
 
   const goals = [
-    { name: "6-Pack abs", progress: healthData?.goal_progress || 34 },
+    { name: "6-Pack abs", progress: overview?.goal_progress || 34 },
     { name: "Study 4h daily", progress: 58 },
   ];
 
@@ -114,7 +114,7 @@ export default function HomeTab({ vlogEntries, healthData, onOpenCamera }) {
         </motion.div>
 
         {/* Daily Score Preview */}
-        {healthData && (
+        {overview && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -126,12 +126,12 @@ export default function HomeTab({ vlogEntries, healthData, onOpenCamera }) {
                 Today's Vibe Score
               </p>
               <p className="text-sm font-semibold text-muted-foreground leading-snug max-w-[220px]">
-                {healthData.subtitle}
+                {overview.subtitle}
               </p>
             </div>
             <div className="text-right shrink-0 ml-4">
               <span className="text-5xl font-black font-display leading-none">
-                {healthData.score?.toFixed(1)}
+                {overview.score?.toFixed(1)}
               </span>
               <span className="text-lg font-bold text-muted-foreground block">/10</span>
             </div>
